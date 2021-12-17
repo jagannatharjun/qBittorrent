@@ -83,6 +83,8 @@ add_library(qbt_base STATIC
     search/searchdownloadhandler.h
     search/searchhandler.h
     search/searchpluginmanager.h
+    streaming/streamingmanager.h
+    streaming/streamingserver.h
     settingsstorage.h
     tagset.h
     torrentfileguard.h
@@ -168,6 +170,8 @@ add_library(qbt_base STATIC
     search/searchdownloadhandler.cpp
     search/searchhandler.cpp
     search/searchpluginmanager.cpp
+    streaming/streamingmanager.cpp
+    streaming/streamingserver.cpp
     settingsstorage.cpp
     tagset.cpp
     torrentfileguard.cpp

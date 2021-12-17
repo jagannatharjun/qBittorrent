@@ -58,6 +58,7 @@ namespace Http
     inline const QString HEADER_X_FORWARDED_HOST = u"x-forwarded-host"_qs;
     inline const QString HEADER_X_FRAME_OPTIONS = u"x-frame-options"_qs;
     inline const QString HEADER_X_XSS_PROTECTION = u"x-xss-protection"_qs;
+    inline const QString HEADER_RANGE = u"range"_qs;
 
     inline const QString HEADER_REQUEST_METHOD_GET = u"GET"_qs;
     inline const QString HEADER_REQUEST_METHOD_HEAD = u"HEAD"_qs;

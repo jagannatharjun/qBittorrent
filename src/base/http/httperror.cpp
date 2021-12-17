@@ -86,3 +86,8 @@ InternalServerErrorHTTPError::InternalServerErrorHTTPError(const QString &messag
     : HTTPError(500, u"Internal Server Error"_qs, message)
 {
 }
+
+InvalidRangeHTTPError::InvalidRangeHTTPError(const QString &message)
+    : HTTPError(416, QLatin1String("Range Not Satisfiable"), message)
+{
+}

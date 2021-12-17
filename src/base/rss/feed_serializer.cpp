@@ -59,6 +59,7 @@ void RSS::Private::FeedSerializer::load(const Path &dataFileName, const QString 
     }
     else
     {
+        emit loadingFinished({});
         LogMsg(tr("Couldn't read RSS Session data from %1. Error: %2")
                .arg(dataFileName.toString(), file.errorString())
                , Log::WARNING);

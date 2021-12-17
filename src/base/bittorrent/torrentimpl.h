@@ -40,10 +40,12 @@
 
 #include <QBitArray>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QMap>
 #include <QObject>
 #include <QQueue>
+#include <QSet>
 #include <QString>
 #include <QVector>
 
@@ -251,6 +253,11 @@ namespace BitTorrent
         void updatePeerCount(const QString &trackerURL, const TrackerEntry::Endpoint &endpoint, int count);
         void invalidateTrackerEntry(const QString &trackerURL);
 
+        bool havePiece(int index) const override;
+        void setPieceDeadline(int index, int deadline, bool readWhenAvailable) override;
+        void resetPieceDeadline(int index) override;
+        void readPiece(int index) override;
+
     private:
         using EventTrigger = std::function<void ()>;
 
@@ -276,6 +283,7 @@ namespace BitTorrent
         void handleTorrentFinishedAlert(const lt::torrent_finished_alert *p);
         void handleTorrentPausedAlert(const lt::torrent_paused_alert *p);
         void handleTorrentResumedAlert(const lt::torrent_resumed_alert *p);
+        void handleReadPieceAlert(const lt::read_piece_alert *p);
 
         bool isMoveInProgress() const;
 
@@ -323,6 +331,17 @@ namespace BitTorrent
         mutable QHash<QString, TrackerEntryUpdateInfo> m_updatedTrackerEntries;
         mutable QVector<TrackerEntry> m_trackerEntries;
         FileErrorInfo m_lastFileError;
+
+        QSet<int> m_enqueuedReadPieces;
+
+        struct PieceDeadlineInfo
+        {
+            int count {};
+            std::chrono::time_point<std::chrono::system_clock> deadlineTime = std::chrono::time_point<std::chrono::system_clock>::max();
+            QElapsedTimer startTime;
+        };
+
+        QHash<int, PieceDeadlineInfo> m_pieceDeadlines;
 
         // Persistent data
         QString m_name;

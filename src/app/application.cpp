@@ -79,6 +79,7 @@
 #include "base/rss/rss_autodownloader.h"
 #include "base/rss/rss_session.h"
 #include "base/search/searchpluginmanager.h"
+#include "base/streaming/streamingmanager.h"
 #include "base/settingsstorage.h"
 #include "base/torrentfileswatcher.h"
 #include "base/utils/compare.h"
@@ -782,6 +783,7 @@ try
 
         Net::GeoIPManager::initInstance();
         TorrentFilesWatcher::initInstance();
+        StreamingManager::initInstance();
 
         new RSS::Session; // create RSS::Session singleton
         new RSS::AutoDownloader; // create RSS::AutoDownloader singleton
@@ -1207,6 +1209,7 @@ void Application::cleanup()
     delete RSS::AutoDownloader::instance();
     delete RSS::Session::instance();
 
+    StreamingManager::freeInstance();
     TorrentFilesWatcher::freeInstance();
     BitTorrent::Session::freeInstance();
     Net::GeoIPManager::freeInstance();

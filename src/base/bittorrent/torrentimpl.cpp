@@ -1886,6 +1886,19 @@ void TorrentImpl::handleTorrentResumedAlert(const lt::torrent_resumed_alert *p)
     Q_UNUSED(p);
 }
 
+void TorrentImpl::handleReadPieceAlert(const libtorrent::read_piece_alert *p)
+{
+    assert(m_enqueuedReadPieces.contains(p->piece));
+    m_enqueuedReadPieces.remove(p->piece);
+
+    auto itr = m_pieceDeadlines.find(p->piece);
+    if (itr != m_pieceDeadlines.end())
+    {
+        qDebug() << "reading piece" << p->piece << "took" << itr->startTime.elapsed() << "ms";
+        m_pieceDeadlines.erase(itr);
+    }
+}
+
 void TorrentImpl::handleSaveResumeDataAlert(const lt::save_resume_data_alert *p)
 {
     if (m_maintenanceJob == MaintenanceJob::HandleMetadata)
@@ -2171,6 +2184,9 @@ void TorrentImpl::handleAlert(const lt::alert *a)
         break;
     case lt::performance_alert::alert_type:
         handlePerformanceAlert(static_cast<const lt::performance_alert*>(a));
+        break;
+    case lt::read_piece_alert::alert_type:
+        handleReadPieceAlert(static_cast<const lt::read_piece_alert*>(a));
         break;
     }
 }
@@ -2515,4 +2531,74 @@ QVector<qreal> TorrentImpl::availableFileFractions() const
         res.push_back(availability);
     }
     return res;
+}
+
+bool TorrentImpl::havePiece(const int index) const
+{
+    return m_nativeHandle.have_piece(lt::piece_index_t {index});
+}
+
+void TorrentImpl::setPieceDeadline(const int index, const int deadline, const bool readWhenAvailable)
+{
+    PieceDeadlineInfo &data = m_pieceDeadlines[index];
+    ++data.count;
+
+    const auto currentTime = std::chrono::system_clock::now();
+    const auto deadlineTime = currentTime + std::chrono::milliseconds(deadline);
+    const bool alreadyReading = m_enqueuedReadPieces.contains(index);
+
+    if (data.deadlineTime < deadlineTime
+        && (readWhenAvailable == alreadyReading))
+        return;
+
+    const bool doRead = readWhenAvailable || alreadyReading;
+    if (doRead)
+    {
+        if (!data.startTime.isValid())
+            data.startTime.start();
+
+        m_enqueuedReadPieces.insert(index);
+    }
+
+    if (data.deadlineTime <= currentTime)
+        data.deadlineTime = currentTime + std::chrono::milliseconds(10);
+
+    data.deadlineTime = std::min(deadlineTime, data.deadlineTime);
+    const int deadlineRemaining = std::chrono::duration_cast<std::chrono::milliseconds>(data.deadlineTime - currentTime).count();
+
+    qDebug("set_piece_deadline, index - %d, deadline - %d, readWhenAvailable - %s",index, deadlineRemaining, (doRead ? "yes" : "no"));
+    const auto flag = doRead ? lt::torrent_handle::alert_when_available : lt::deadline_flags_t {};
+    m_nativeHandle.set_piece_deadline(lt::piece_index_t {index}
+                                      , std::max(deadlineRemaining, 1)
+                                      , flag);
+}
+
+void TorrentImpl::resetPieceDeadline(const int index)
+{
+    Q_ASSERT(m_pieceDeadlines.contains(index));
+
+    const auto iter = m_pieceDeadlines.find(index);
+    if (iter == m_pieceDeadlines.end())
+        return;
+
+    iter->count--;
+    if (iter->count == 0)
+    {
+        qDebug("resetting piece deadline %d", index);
+        m_nativeHandle.reset_piece_deadline(lt::piece_index_t {index});
+
+        const auto fileIndex = m_torrentInfo.fileIndexAtPiece(index);
+        m_nativeHandle.piece_priority(index, LT::toNative(m_filePriorities[fileIndex]));
+
+        m_pieceDeadlines.erase(iter);
+    }
+}
+
+void TorrentImpl::readPiece(const int index)
+{
+    if (m_enqueuedReadPieces.contains(index))
+        return;
+
+    m_enqueuedReadPieces.insert(index);
+    m_nativeHandle.read_piece(index);
 }

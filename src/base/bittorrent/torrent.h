@@ -314,6 +314,11 @@ namespace BitTorrent
         virtual StopCondition stopCondition() const = 0;
         virtual void setStopCondition(StopCondition stopCondition) = 0;
 
+        virtual bool havePiece(int index) const = 0;
+        virtual void setPieceDeadline(int index, int deadline, bool readWhenAvailable) = 0;
+        virtual void resetPieceDeadline(int index) = 0;
+        virtual void readPiece(int index) = 0;
+
         virtual QString createMagnetURI() const = 0;
         virtual nonstd::expected<QByteArray, QString> exportToBuffer() const = 0;
         virtual nonstd::expected<void, QString> exportToFile(const Path &path) const = 0;

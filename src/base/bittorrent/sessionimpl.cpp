@@ -5141,6 +5141,9 @@ void SessionImpl::handleAlert(const lt::alert *a)
             handleTorrentConflictAlert(static_cast<const lt::torrent_conflict_alert *>(a));
             break;
 #endif
+        case lt::read_piece_alert::alert_type:
+            handleReadPieceAlert(static_cast<const lt::read_piece_alert*>(a));
+            break;
         }
     }
     catch (const std::exception &exc)
@@ -5716,4 +5719,19 @@ void SessionImpl::loadStatistics()
 
     m_previouslyDownloaded = value[u"AlltimeDL"_qs].toLongLong();
     m_previouslyUploaded = value[u"AlltimeUL"_qs].toLongLong();
+}
+
+void SessionImpl::handleReadPieceAlert(const libtorrent::read_piece_alert *p)
+{
+    qDebug("deploying read piece alert for %d", p->piece);
+    TorrentImpl *const torrent = m_torrents.value(p->handle.info_hash());
+    if (!torrent)
+        return;
+
+    torrent->handleAlert(p);
+
+    if (p->error)
+        emit torrentReadPieceFailed(torrent, p->piece, QString::fromStdString(p->message()));
+    else
+        emit torrentReadPieceFinished(torrent, p->piece, p->buffer, p->size);
 }
