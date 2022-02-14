@@ -36,6 +36,9 @@ namespace BitTorrent
     {
         bool hasIncomingConnections = false;
 
+        qint64 payloadDownloadRate5Sec = 0;
+        qint64 payloadUploadRate5Sec = 0;
+
         // Current download rate for the BT
         // session. Payload means that it only take into
         // account "useful" part of the rate

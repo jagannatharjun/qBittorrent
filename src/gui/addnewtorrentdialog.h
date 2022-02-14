@@ -32,6 +32,7 @@
 #include <memory>
 
 #include <QDialog>
+#include <QFuture>
 
 #include "base/path.h"
 #include "base/settingvalue.h"
@@ -82,6 +83,9 @@ private slots:
     void categoryChanged(int index);
     void contentLayoutChanged();
 
+    void resetCategoriesState();
+    void updateRecommendCategories();
+
 private:
     class TorrentContentAdaptor;
     struct Context;
@@ -114,4 +118,7 @@ private:
     SettingValue<QByteArray> m_storeTreeHeaderState;
     SettingValue<QByteArray> m_storeSplitterState;
     SettingValue<FilterPatternFormat> m_storeFilterPatternFormat;
+
+    QFuture<QStringList> m_recommendedCategories;
+    QVector<QPushButton *> m_categoriesButton;
 };

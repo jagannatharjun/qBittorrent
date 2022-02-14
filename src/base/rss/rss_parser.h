@@ -45,6 +45,7 @@ namespace RSS::Private
         QString error;
         QString lastBuildDate;
         QString title;
+        QString link;
         QList<QVariantHash> articles;
     };
 

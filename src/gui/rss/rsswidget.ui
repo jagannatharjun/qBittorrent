@@ -121,11 +121,7 @@
           <enum>Qt::Orientation::Horizontal</enum>
          </property>
          <widget class="ArticleListWidget" name="articleListWidget"/>
-         <widget class="HtmlBrowser" name="textBrowser">
-          <property name="openExternalLinks">
-           <bool>true</bool>
-          </property>
-         </widget>
+         <widget class="HtmlBrowser" name="textBrowser"/>
         </widget>
        </item>
       </layout>
@@ -206,12 +202,21 @@
     <string>Edit feed URL</string>
    </property>
   </action>
+  <action name="actionFeedClear">
+   <property name="text">
+    <string>Clear</string>
+   </property>
+   <property name="toolTip">
+    <string>Clear Feed</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
    <class>HtmlBrowser</class>
-   <extends>QTextBrowser</extends>
+   <extends>QWidget</extends>
    <header>gui/rss/htmlbrowser.h</header>
+   <container>1</container>
   </customwidget>
   <customwidget>
    <class>FeedListWidget</class>

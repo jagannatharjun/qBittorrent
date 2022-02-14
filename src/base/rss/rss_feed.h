@@ -78,6 +78,8 @@ namespace RSS
         void refresh() override;
         void updateFetchDelay() override;
 
+        void clear();
+
         QUuid uid() const;
         QString url() const;
         QString title() const;

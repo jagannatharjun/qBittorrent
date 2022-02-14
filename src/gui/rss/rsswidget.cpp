@@ -180,6 +180,16 @@ RSSWidget::~RSSWidget()
     delete m_ui;
 }
 
+void RSSWidget::showHTML()
+{
+    m_ui->textBrowser->showHTML();
+}
+
+void RSSWidget::hideHTML()
+{
+    m_ui->textBrowser->hideHTML();
+}
+
 // display a right-click menu
 void RSSWidget::displayRSSListMenu(const QPoint &pos)
 {
@@ -223,6 +233,7 @@ void RSSWidget::displayRSSListMenu(const QPoint &pos)
         {
             menu->addSeparator();
             menu->addAction(m_ui->actionCopyFeedURL);
+            menu->addAction(m_ui->actionFeedClear);
         }
     }
     else
@@ -561,7 +572,6 @@ void RSSWidget::on_markReadButton_clicked()
 // display a news
 void RSSWidget::handleCurrentArticleItemChanged(QListWidgetItem *currentItem, QListWidgetItem *previousItem)
 {
-    m_ui->textBrowser->clear();
 
     if (previousItem)
     {
@@ -637,24 +647,25 @@ void RSSWidget::renderArticle(const RSS::Article *article) const
 {
     Q_ASSERT(article);
 
-    const QString highlightedBaseColor = m_ui->textBrowser->palette().color(QPalette::Active, QPalette::Highlight).name();
-    const QString highlightedBaseTextColor = m_ui->textBrowser->palette().color(QPalette::Active, QPalette::HighlightedText).name();
-    const QString alternateBaseColor = m_ui->textBrowser->palette().color(QPalette::Active, QPalette::AlternateBase).name();
+    const QString highlightedBaseColor = m_ui->textBrowser->palette().color(QPalette::Active, QPalette::Highlight).name(QColor::HexArgb);
+    const QString highlightedBaseTextColor = m_ui->textBrowser->palette().color(QPalette::Active, QPalette::HighlightedText).name(QColor::HexArgb);
+    const QString alternateBaseColor = m_ui->textBrowser->palette().color(QPalette::Active, QPalette::AlternateBase).name(QColor::HexArgb);
 
-    QString html =
+    QString heading =
         u"<div style='border: 2px solid red; margin-left: 5px; margin-right: 5px; margin-bottom: 5px;'>" +
-        u"<div style='background-color: \"%1\"; font-weight: bold; color: \"%2\";'>%3</div>"_s.arg(highlightedBaseColor, highlightedBaseTextColor, article->title());
+        u"<div style='background-color: %1; font-weight: bold; color: %2;'>%3</div>"_s.arg(highlightedBaseColor, highlightedBaseTextColor, article->title());
     if (article->date().isValid())
-        html += u"<div style='background-color: \"%1\";'><b>%2</b>%3</div>"_s.arg(alternateBaseColor, tr("Date: "), QLocale::system().toString(article->date().toLocalTime()));
+        heading += u"<div style='background-color: %1;'><b>%2</b>%3</div>"_s.arg(alternateBaseColor, tr("Date: "), QLocale::system().toString(article->date().toLocalTime()));
     if (m_ui->feedListWidget->currentItem() == m_ui->feedListWidget->stickyUnreadItem())
-        html += u"<div style='background-color: \"%1\";'><b>%2</b>%3</div>"_s.arg(alternateBaseColor, tr("Feed: "), article->feed()->title());
+        heading += u"<div style='background-color: %1;'><b>%2</b>%3</div>"_s.arg(alternateBaseColor, tr("Feed: "), article->feed()->title());
     if (!article->author().isEmpty())
-        html += u"<div style='background-color: \"%1\";'><b>%2</b>%3</div>"_s.arg(alternateBaseColor, tr("Author: "), article->author());
-    html += u"</div>"
-            u"<div style='margin-left: 5px; margin-right: 5px;'>";
+        heading += u"<div style='background-color: %1;'><b>%2</b>%3</div>"_s.arg(alternateBaseColor, tr("Author: "), article->author());
+    heading += u"</div>";
+
+    QString content = u"<div style='margin-left: 5px; margin-right: 5px;'>"_s;
     if (Qt::mightBeRichText(article->description()))
     {
-        html += article->description();
+        content += article->description();
     }
     else
     {
@@ -662,7 +673,7 @@ void RSSWidget::renderArticle(const RSS::Article *article) const
         QRegularExpression rx;
         // If description is plain text, replace BBCode tags with HTML and wrap everything in <pre></pre> so it looks nice
         rx.setPatternOptions(QRegularExpression::InvertedGreedinessOption
-                             | QRegularExpression::CaseInsensitiveOption);
+            | QRegularExpression::CaseInsensitiveOption);
 
         rx.setPattern(u"\\[img\\](.+)\\[/img\\]"_s);
         description = description.replace(rx, u"<img src=\"\\1\">"_s);
@@ -682,13 +693,10 @@ void RSSWidget::renderArticle(const RSS::Article *article) const
         description = description.replace(rx, u"<span style=\"font-size:\\2px\">"_s);
         description = description.replace(u"[/size]"_s, u"</span>"_s, Qt::CaseInsensitive);
 
-        html += u"<pre>" + description + u"</pre>";
+        content += u"<pre>" + description + u"</pre>";
     }
 
-    // Supplement relative URLs to absolute ones
-    const QUrl url {article->link()};
-    const QString baseUrl = url.toString(QUrl::RemovePath | QUrl::RemoveQuery);
-    convertRelativeUrlToAbsolute(html, baseUrl);
-    html += u"</div>";
-    m_ui->textBrowser->setHtml(html);
+    content += u"</div>";
+
+    m_ui->textBrowser->setContentHTML(heading, content);
 }

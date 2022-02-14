@@ -47,6 +47,13 @@ namespace BitTorrent
     class InfoHash;
     struct TrackerEntry;
 
+    struct PieceFileInfo
+    {
+        int index;
+        int start;
+        int length;
+    };
+
     class TorrentInfo
     {
     public:
@@ -84,6 +91,8 @@ namespace BitTorrent
 
         bool matchesInfoHash(const InfoHash &otherInfoHash) const;
 
+        PieceFileInfo mapFile(int fileIndex, qlonglong offset, int size) const;
+        
         std::shared_ptr<lt::torrent_info> nativeInfo() const;
         QList<lt::file_index_t> nativeIndexes() const;
 

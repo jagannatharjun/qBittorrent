@@ -290,6 +290,13 @@ bool TorrentInfo::matchesInfoHash(const InfoHash &otherInfoHash) const
     return true;
 }
 
+
+PieceFileInfo TorrentInfo::mapFile(int fileIndex, qlonglong offset, int size) const
+{
+    lt::peer_request info = m_nativeInfo->map_file(lt::file_index_t {fileIndex}, offset, size);
+    return {info.piece, info.start, info.length};
+}
+
 int TorrentInfo::fileIndex(const Path &filePath) const
 {
     // the check whether the object is valid is not needed here
