@@ -689,6 +689,10 @@ void RSS::Private::Parser::parseRSSChannel(QXmlStreamReader &xml)
                     m_result.lastBuildDate = lastBuildDate;
                 }
             }
+            else if (xml.name() == u"link")
+            {
+                m_result.link = xml.readElementText();
+            }
             else if (xml.name() == u"item")
             {
                 parseRssArticle(xml);
@@ -804,6 +808,10 @@ void RSS::Private::Parser::parseAtomChannel(QXmlStreamReader &xml)
                     }
                     m_result.lastBuildDate = lastBuildDate;
                 }
+            }
+            else if (xml.name() == u"link")
+            {
+                m_result.link = xml.readElementText();
             }
             else if (xml.name() == u"entry")
             {

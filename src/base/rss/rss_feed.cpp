@@ -34,6 +34,7 @@
 #include <utility>
 #include <vector>
 
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -254,6 +255,17 @@ void Feed::handleParsingFinished(const RSS::Private::ParsingResult &result)
     {
         m_lastBuildDate = result.lastBuildDate;
         m_dirty = true;
+    }
+
+    qDebug() << "link" << result.link;
+    if (!result.link.isEmpty() && !QFileInfo::exists(m_iconPath.data()))
+    {
+        const auto iconUrl = QString::fromLatin1("%1/favicon.ico").arg(result.link);
+        qDebug() << "downloading" << iconUrl << "link" << result.link;
+        Net::DownloadManager::instance()->download(
+                Net::DownloadRequest(iconUrl).saveToFile(true).destFileName(m_iconPath)
+                    , this, &Feed::handleIconDownloadFinished);
+
     }
 
     // For some reason, the RSS feed may contain malformed XML data and it may not be
