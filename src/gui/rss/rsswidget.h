@@ -59,6 +59,9 @@ public:
     explicit RSSWidget(IGUIApplication *app, QWidget *parent = nullptr);
     ~RSSWidget() override;
 
+    void showHTML();
+    void hideHTML();
+
 public slots:
     void deleteSelectedItems();
     void updateRefreshInterval(int val) const;

@@ -583,6 +583,8 @@ namespace BitTorrent
         void handleTorrentConflictAlert(const lt::torrent_conflict_alert *alert);
 #endif
 
+        void handleReadPieceAlert(const lt::read_piece_alert *p);
+
         TorrentImpl *createTorrent(const lt::torrent_handle &nativeHandle, const LoadTorrentParams &params);
 
         void saveResumeData();

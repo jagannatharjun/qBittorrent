@@ -28,29 +28,26 @@
 
 #pragma once
 
-#include <QHash>
-#include <QTextBrowser>
+#include <QWidget>
 
-class QNetworkAccessManager;
-class QNetworkDiskCache;
-class QNetworkReply;
+class QWebEngineView;
+class QHBoxLayout;
 
-class HtmlBrowser final : public QTextBrowser
+class HtmlBrowser final : public QWidget
 {
     Q_OBJECT
     Q_DISABLE_COPY_MOVE(HtmlBrowser)
 
 public:
-    explicit HtmlBrowser(QWidget* parent = nullptr);
-    ~HtmlBrowser() = default;
+    HtmlBrowser(QWidget *parent);
+    ~HtmlBrowser();
 
-    QVariant loadResource(int type, const QUrl &name) override;
+    void setContentHTML(const QString &heading, const QString &content);
+    void showHTML();
+    void hideHTML();
 
-protected:
-    QNetworkAccessManager *m_netManager = nullptr;
-    QNetworkDiskCache *m_diskCache = nullptr;
-    QHash<QUrl, bool> m_activeRequests;
-
-protected slots:
-    void resourceLoaded(QNetworkReply *reply);
+private:
+    std::unique_ptr<QWebEngineView> m_webView;
+    QString m_html;
 };
+

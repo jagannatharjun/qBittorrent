@@ -32,6 +32,8 @@
 #include <QClipboard>
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QHeaderView>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
@@ -41,6 +43,7 @@
 #include <QStackedWidget>
 #include <QThread>
 #include <QUrl>
+#include <QProcess>
 
 #include "base/bittorrent/infohash.h"
 #include "base/bittorrent/session.h"

@@ -39,7 +39,10 @@
 #include <QShortcut>
 #include <QThread>
 #include <QWheelEvent>
+#include <QProcess>
+#include <QClipboard>
 
+#include "base/streaming/streamingmanager.h"
 #include "base/bittorrent/torrentcontenthandler.h"
 #include "base/path.h"
 #include "base/utils/string.h"
@@ -426,6 +429,51 @@ void TorrentContentWidget::displayContextMenu()
         });
         subMenu->addSeparator();
         subMenu->addAction(tr("By shown file order"), this, &TorrentContentWidget::applyPrioritiesByOrder);
+
+        const QModelIndex sourceIndex = m_filterModel->mapToSource(selectedRows[0]);
+        auto torrent = dynamic_cast<BitTorrent::Torrent *>(m_model->contentHandler());
+        if (torrent
+                && (m_model->itemType(sourceIndex) == TorrentContentModelItem::FileType))
+        {
+            menu->addSeparator();
+
+            const int fileIndex = m_model->getFileIndex(sourceIndex);
+
+            QAction *vlc = menu->addAction(tr("Play with VLC"));
+            connect(vlc, &QAction::triggered, torrent, [fileIndex, torrent]()
+            {
+
+                const auto tryVar = [](const char *var) {
+                    const QString expandedEnv = QString::fromUtf8(qgetenv(var));
+                    if (expandedEnv.isEmpty())
+                        return QString {};
+                    const QDir dir {expandedEnv};
+                    if (!dir.exists() || !dir.exists(u"VideoLAN/VLC/vlc.exe"_qs))
+                        return QString {};
+                    return dir.absoluteFilePath(u"VideoLAN/VLC/vlc.exe"_qs);
+                };
+                const QString vlc = tryVar("PROGRAMFILES");
+
+                QProcess::startDetached(vlc.isEmpty() ? tryVar("ProgramFiles(x86)") : vlc,
+                                        {StreamingManager::instance()->streamURL(torrent, fileIndex)});
+            });
+
+            QAction *mpv = menu->addAction(tr("Play with MPV"));
+            connect(mpv, &QAction::triggered, torrent, [fileIndex, torrent]()
+            {
+
+                QProcess::startDetached(u"mpv"_qs,
+                                        {StreamingManager::instance()->streamURL(torrent, fileIndex)});
+            });
+
+            QAction *copyURL = menu->addAction(tr("Copy Stream URL"));
+            connect(copyURL, &QAction::triggered, torrent, [fileIndex, torrent]()
+            {
+                QApplication::clipboard()->setText(StreamingManager::instance()->streamURL(torrent, fileIndex));
+            });
+        }
+
+        menu->popup(QCursor::pos());
     }
     else
     {

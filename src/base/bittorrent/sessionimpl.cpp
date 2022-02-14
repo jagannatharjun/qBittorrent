@@ -5680,6 +5680,9 @@ void SessionImpl::handleAlert(const lt::alert *alert)
             handleTorrentConflictAlert(static_cast<const lt::torrent_conflict_alert *>(alert));
             break;
 #endif
+        case lt::read_piece_alert::alert_type:
+            handleReadPieceAlert(static_cast<const lt::read_piece_alert*>(a));
+            break;
         }
     }
     catch (const std::exception &exc)
@@ -6008,6 +6011,28 @@ void SessionImpl::handleSessionStatsAlert(const lt::session_stats_alert *alert)
         Q_ASSERT(interval >= 0);
         return (((current - previous) * lt::microseconds(1s).count()) / interval);
     };
+
+    const auto calcAverage = [interval, &calcRate](qint64 &average, const qint64 previous, const qint64 current)
+    {
+        Q_ASSERT(current >= previous);
+        Q_ASSERT(interval >= 0);
+
+        // take 5sec rolling average to match torrent download rates
+        // which are 5sec rolling average
+        const double span = 5;
+        const double interval_s = interval / 1e6;
+
+        if (interval_s >= span)
+        {
+            average = calcRate(previous, current);
+            return;
+        }
+
+        average = (average * (span - interval_s)) / span + (current - previous) / span;
+    };
+
+    calcAverage(m_status.payloadDownloadRate5Sec, m_status.totalPayloadDownload, totalPayloadDownload);
+    calcAverage(m_status.payloadUploadRate5Sec, m_status.totalPayloadUpload, totalPayloadUpload);
 
     m_status.payloadDownloadRate = calcRate(m_status.totalPayloadDownload, totalPayloadDownload);
     m_status.payloadUploadRate = calcRate(m_status.totalPayloadUpload, totalPayloadUpload);
@@ -6343,4 +6368,20 @@ void SessionImpl::handleRemovedTorrent(const TorrentID &torrentID, const QString
     }
 
     m_removingTorrents.erase(removingTorrentDataIter);
+}
+
+
+void SessionImpl::handleReadPieceAlert(const libtorrent::read_piece_alert *p)
+{
+    qDebug("deploying read piece alert for %d", p->piece);
+    TorrentImpl *const torrent = m_torrents.value(p->handle.info_hash());
+    if (!torrent)
+        return;
+
+    torrent->handleAlert(p);
+
+    if (p->error)
+        emit torrentReadPieceFailed(torrent, p->piece, QString::fromStdString(p->message()));
+    else
+        emit torrentReadPieceFinished(torrent, p->piece, p->buffer, p->size);
 }

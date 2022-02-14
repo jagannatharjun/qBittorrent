@@ -1,4 +1,4 @@
-find_package(Qt6 ${minQt6Version} REQUIRED COMPONENTS Widgets Svg)
+find_package(Qt6 ${minQt6Version} REQUIRED COMPONENTS Widgets Svg WebEngineWidgets Concurrent)
 
 # CMAKE_AUTO_UI causes unnecessary rebuilds
 qt_wrap_ui(UI_HEADERS
@@ -247,7 +247,7 @@ target_include_directories(qbt_gui PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(qbt_gui
     PRIVATE
-        qbt_base
+        qbt_base Qt${QT_VERSION_MAJOR}::WebEngineWidgets Qt${QT_VERSION_MAJOR}::Concurrent
     PUBLIC
         Qt::Gui Qt::Widgets
 )

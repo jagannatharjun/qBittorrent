@@ -100,7 +100,7 @@
         <widget class="QLabel" name="news_lbl">
          <property name="font">
           <font>
-           <weight>75</weight>
+	   <weight>75</weight>
            <bold>true</bold>
           </font>
          </property>
@@ -120,11 +120,7 @@
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
          </property>
-         <widget class="HtmlBrowser" name="textBrowser">
-          <property name="openExternalLinks">
-           <bool>true</bool>
-          </property>
-         </widget>
+         <widget class="HtmlBrowser" name="textBrowser" native="true"/>
         </widget>
        </item>
       </layout>
@@ -205,12 +201,21 @@
     <string>Edit feed URL</string>
    </property>
   </action>
+  <action name="actionFeedClear">
+   <property name="text">
+    <string>Clear</string>
+   </property>
+   <property name="toolTip">
+    <string>Clear Feed</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
    <class>HtmlBrowser</class>
-   <extends>QTextBrowser</extends>
+   <extends>QWidget</extends>
    <header>gui/rss/htmlbrowser.h</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>

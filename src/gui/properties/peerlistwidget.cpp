@@ -32,6 +32,7 @@
 #include <algorithm>
 
 #include <QApplication>
+#include <QBitArray>
 #include <QClipboard>
 #include <QHeaderView>
 #include <QHostAddress>
@@ -45,6 +46,7 @@
 #include <QVector>
 #include <QWheelEvent>
 
+#include "base/bittorrent/infohash.h"
 #include "base/bittorrent/peeraddress.h"
 #include "base/bittorrent/peerinfo.h"
 #include "base/bittorrent/session.h"
@@ -88,11 +90,77 @@ namespace
 
         model->setItemData(model->index(row, column), data);
     }
+
+struct SpeedEstimator
+{
+    SpeedEstimator() = default;
+    SpeedEstimator(const QBitArray &pieces)
+        : originalPiecesCount {pieces.count(true)}
+        , piecesSize {pieces.size()}
+    {
+        elapsedTime.start();
+    }
+
+    qint64 update(const QBitArray &newPieces, const qint64 pieceLength)
+    {
+        const qsizetype newPiecesCount = newPieces.count(true);
+        const qint64 elapsedMS = elapsedTime.elapsed();
+
+        if ((piecesSize != newPieces.size())
+            || (originalPiecesCount == 0)
+            || (originalPiecesCount > newPiecesCount)
+            || (elapsedMS >= 5 * 60 * 1000))
+        {
+            piecesSize = newPieces.size();
+            originalPiecesCount = newPiecesCount;
+            elapsedTime.restart();
+            return 0;
+        }
+
+        if (elapsedMS == 0)
+        {
+            elapsedTime.restart();
+            return 0;
+        }
+
+        const auto unique = newPiecesCount - originalPiecesCount;
+        return (unique * pieceLength) / (elapsedMS / 1000.);
+    }
+
+private:
+    qsizetype originalPiecesCount = 0;
+    qsizetype piecesSize = 0;
+    QElapsedTimer elapsedTime;
+};
+
 }
+
+class PeerSpeedEstimator
+{
+public:
+    qsizetype speed(const BitTorrent::Torrent *torrent, const BitTorrent::PeerInfo &peer)
+    {
+        if (peer.isConnecting() || peer.isSeed())
+            return 0;
+
+        const PeerEndpoint endpoint {peer.address(), peer.connectionType()};
+        if (auto estimator = info.object(endpoint))
+            return estimator->update(peer.pieces(), torrent->pieceLength());
+
+        auto estimator = new SpeedEstimator(peer.pieces());
+        info.insert(endpoint, estimator);
+        return 0;
+    }
+
+private:
+    QCache<PeerEndpoint, SpeedEstimator> info;
+};
+
 
 PeerListWidget::PeerListWidget(PropertiesWidget *parent)
     : QTreeView(parent)
     , m_properties(parent)
+    , m_peerSpeed(new PeerSpeedEstimator)
 {
     // Load settings
     const bool columnLoaded = loadSettings();
@@ -123,6 +191,7 @@ PeerListWidget::PeerListWidget(PropertiesWidget *parent)
     m_listModel->setHeaderData(PeerListColumns::TOT_UP, Qt::Horizontal, tr("Uploaded", "i.e: total data uploaded"));
     m_listModel->setHeaderData(PeerListColumns::RELEVANCE, Qt::Horizontal, tr("Relevance", "i.e: How relevant this peer is to us. How many pieces it has that we don't."));
     m_listModel->setHeaderData(PeerListColumns::DOWNLOADING_PIECE, Qt::Horizontal, tr("Files", "i.e. files that are being downloaded right now"));
+    m_listModel->setHeaderData(PeerListColumns::PEER_DOWN_SPEED, Qt::Horizontal, tr("Peer dl.", "i.e. estimated speed at which peer is downloading"));
     // Set header text alignment
     m_listModel->setHeaderData(PeerListColumns::PORT, Qt::Horizontal, QVariant(Qt::AlignRight | Qt::AlignVCenter), Qt::TextAlignmentRole);
     m_listModel->setHeaderData(PeerListColumns::PROGRESS, Qt::Horizontal, QVariant(Qt::AlignRight | Qt::AlignVCenter), Qt::TextAlignmentRole);
@@ -131,6 +200,7 @@ PeerListWidget::PeerListWidget(PropertiesWidget *parent)
     m_listModel->setHeaderData(PeerListColumns::TOT_DOWN, Qt::Horizontal, QVariant(Qt::AlignRight | Qt::AlignVCenter), Qt::TextAlignmentRole);
     m_listModel->setHeaderData(PeerListColumns::TOT_UP, Qt::Horizontal, QVariant(Qt::AlignRight | Qt::AlignVCenter), Qt::TextAlignmentRole);
     m_listModel->setHeaderData(PeerListColumns::RELEVANCE, Qt::Horizontal, QVariant(Qt::AlignRight | Qt::AlignVCenter), Qt::TextAlignmentRole);
+    m_listModel->setHeaderData(PeerListColumns::PEER_DOWN_SPEED, Qt::Horizontal, QVariant(Qt::AlignRight | Qt::AlignVCenter), Qt::TextAlignmentRole);
     // Proxy model to support sorting without actually altering the underlying model
     m_proxyModel = new PeerListSortModel(this);
     m_proxyModel->setDynamicSortFilter(true);
@@ -193,6 +263,8 @@ PeerListWidget::PeerListWidget(PropertiesWidget *parent)
 
 PeerListWidget::~PeerListWidget()
 {
+    delete m_peerSpeed;
+
     saveSettings();
 }
 
@@ -306,6 +378,14 @@ void PeerListWidget::showPeerListMenu()
     QAction *banPeers = menu->addAction(UIThemeManager::instance()->getIcon(u"peers-remove"_s), tr("Ban peer permanently")
         , this, &PeerListWidget::banSelectedPeers);
 
+    menu->addSeparator();
+    QAction *showConnectingPeers = menu->addAction(tr("Show Connecting Peers")
+                                                   , m_proxyModel
+                                                   , &PeerListSortModel::setShowConnectingPeers);
+
+    showConnectingPeers->setCheckable(true);
+    showConnectingPeers->setChecked(m_proxyModel->showConnectingPeers());
+
     // disable actions
     const auto disableAction = [](QAction *action, const QString &tooltip)
     {
@@ -384,6 +464,7 @@ void PeerListWidget::clear()
     m_peerItems.clear();
     m_I2PPeerItems.clear();
     m_itemsByIP.clear();
+
     const int nbrows = m_listModel->rowCount();
     if (nbrows > 0)
         m_listModel->removeRows(0, nbrows);
@@ -522,6 +603,12 @@ void PeerListWidget::updatePeer(const int row, const BitTorrent::Torrent *torren
     const QString downloadingFilesDisplayValue = downloadingFiles.join(u';');
     setModelData(m_listModel, row, PeerListColumns::DOWNLOADING_PIECE, downloadingFilesDisplayValue
             , downloadingFilesDisplayValue, {}, downloadingFiles.join(u'\n'));
+
+    const qsizetype peerDown = m_peerSpeed->speed(torrent, peer);
+    const auto peerDownDisplay = (peerDown <= 0) ? QString {} : Utils::Misc::friendlyUnit(peerDown, true);
+    setModelData(m_listModel, row, PeerListColumns::PEER_DOWN_SPEED, peerDownDisplay, peerDown, intDataTextAlignment);
+
+    m_listModel->setData(m_listModel->index(row, 0), peer.isConnecting(), PeerListSortModel::IsConnectingRole);
 
     if (!peer.useI2PSocket() && m_resolver)
         m_resolver->resolve(peer.address().ip);

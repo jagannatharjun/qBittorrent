@@ -32,6 +32,7 @@
 #include <memory>
 
 #include <QDialog>
+#include <QFuture>
 
 #include "base/path.h"
 #include "base/settingvalue.h"
@@ -75,6 +76,10 @@ private slots:
     void TMMChanged(int index);
     void categoryChanged(int index);
     void contentLayoutChanged();
+    
+    void doNotDeleteTorrentClicked(bool checked);
+    void resetCategoriesState();
+    void updateRecommendCategories();
 
     void accept() override;
     void reject() override;
@@ -110,5 +115,11 @@ private:
     SettingValue<bool> m_storeRememberLastSavePath;
     SettingValue<QByteArray> m_storeTreeHeaderState;
     SettingValue<QByteArray> m_storeSplitterState;
+<<<<<<< HEAD
     SettingValue<FilterPatternFormat> m_storeFilterPatternFormat;
+=======
+
+    QFuture<QStringList> m_recommendedCategories;
+    QVector<QPushButton *> m_categoriesButton;
+>>>>>>> 86e54a5d7 (streaming and other fixes)
 };
