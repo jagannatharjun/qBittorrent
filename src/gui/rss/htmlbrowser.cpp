@@ -36,6 +36,7 @@
 #include <QNetworkRequest>
 #include <QScrollBar>
 #include <QStyle>
+#include <QTimer>
 
 #include "base/global.h"
 #include "base/path.h"
@@ -81,10 +82,11 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
             qDebug() << "HtmlBrowser::loadResource() get " << url.toString();
             QNetworkRequest req(url);
             req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
-            m_netManager->get(req);
+            QNetworkReply *reply = m_netManager->get(req);
+            connect(reply, &QNetworkReply::downloadProgress, this, &HtmlBrowser::handleProgressChanged);
         }
 
-        return {};
+        return m_loading.value(url);
     }
 
     return QTextBrowser::loadResource(type, name);
@@ -93,6 +95,7 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
 void HtmlBrowser::resourceLoaded(QNetworkReply *reply)
 {
     m_activeRequests.remove(reply->request().url());
+    m_loading.remove(reply->request().url());
 
     if ((reply->error() == QNetworkReply::NoError) && (reply->size() > 0))
     {
@@ -118,10 +121,37 @@ void HtmlBrowser::resourceLoaded(QNetworkReply *reply)
         QApplication::style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(32, 32).save(dev, "PNG");
         m_diskCache->insert(dev);
     }
-    // Refresh the document display and keep scrollbars where they are
-    int sx = horizontalScrollBar()->value();
-    int sy = verticalScrollBar()->value();
-    document()->setHtml(document()->toHtml());
-    horizontalScrollBar()->setValue(sx);
-    verticalScrollBar()->setValue(sy);
+
+    enqueueRefresh();
+}
+
+void HtmlBrowser::handleProgressChanged(qint64 , qint64 )
+{
+    QNetworkReply *src = qobject_cast<QNetworkReply *>(sender());
+    if (!src)
+        return;
+
+    qDebug() << "progress" << src->request().url();
+    m_loading[src->request().url()] = src->peek(src->bytesAvailable());
+    enqueueRefresh();
+}
+
+void HtmlBrowser::enqueueRefresh()
+{
+    if (m_refreshEnqueued)
+        return;
+
+    m_refreshEnqueued = true;
+
+    QTimer::singleShot(100, this, [this]()
+    {
+        m_refreshEnqueued = false;
+
+        // Refresh the document display and keep scrollbars where they are
+        int sx = horizontalScrollBar()->value();
+        int sy = verticalScrollBar()->value();
+        document()->setHtml(document()->toHtml());
+        horizontalScrollBar()->setValue(sx);
+        verticalScrollBar()->setValue(sy);
+    });
 }

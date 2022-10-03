@@ -50,7 +50,13 @@ protected:
     QNetworkAccessManager *m_netManager = nullptr;
     QNetworkDiskCache *m_diskCache = nullptr;
     QHash<QUrl, bool> m_activeRequests;
+    QHash<QUrl, QByteArray> m_loading;
+    bool m_refreshEnqueued = false;
 
 protected slots:
     void resourceLoaded(QNetworkReply *reply);
+
+private slots:
+    void handleProgressChanged(qint64 bytesReceived, qint64 bytesTotal);
+    void enqueueRefresh();
 };
