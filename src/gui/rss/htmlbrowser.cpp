@@ -67,6 +67,10 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
         if (url.scheme().isEmpty())
             url.setScheme(u"http"_qs);
 
+        // TODO add support for gif files
+        if (Path(url.path()).hasExtension(u".gif"_qs))
+            return {};
+
         QIODevice *dev = m_diskCache->data(url);
         if (dev)
         {
