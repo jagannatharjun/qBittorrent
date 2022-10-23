@@ -45,7 +45,8 @@ namespace
 {
     enum
     {
-        StickyItemTagRole = Qt::UserRole + 1
+        UnreadItemTagRole = Qt::UserRole + 1,
+        StickyItemTagRole
     };
 
     class FeedListItem final : public QTreeWidgetItem
@@ -56,14 +57,23 @@ namespace
     private:
         bool operator<(const QTreeWidgetItem &other) const override
         {
-            const bool lhsSticky = data(0, StickyItemTagRole).toBool();
-            const bool rhsSticky = other.data(0, StickyItemTagRole).toBool();
-
-            if (lhsSticky == rhsSticky)
-                return QTreeWidgetItem::operator<(other);
-
             const int order = treeWidget()->header()->sortIndicatorOrder();
-            return ((order == Qt::AscendingOrder) ? lhsSticky : rhsSticky);
+
+            const bool lhsUnreadItem = data(0, UnreadItemTagRole).toBool();
+            const bool rhsUnreadItem = other.data(0, UnreadItemTagRole).toBool();
+
+            if (lhsUnreadItem == rhsUnreadItem)
+            {
+                const bool lhsSticky = data(0, StickyItemTagRole).toBool();
+                const bool rhsSticky = other.data(0, StickyItemTagRole).toBool();
+
+                if (lhsSticky == rhsSticky)
+                    return QTreeWidgetItem::operator<(other);
+
+                return ((order == Qt::AscendingOrder) ? rhsSticky : lhsSticky);
+            }
+
+            return ((order == Qt::AscendingOrder) ? lhsUnreadItem : rhsUnreadItem);
         }
     };
 
@@ -109,6 +119,7 @@ FeedListWidget::FeedListWidget(QWidget *parent)
             reinterpret_cast<intptr_t>(RSS::Session::instance()->rootFolder())));
     m_unreadStickyItem->setText(0, tr("Unread  (%1)").arg(RSS::Session::instance()->rootFolder()->unreadCount()));
     m_unreadStickyItem->setData(0, Qt::DecorationRole, UIThemeManager::instance()->getIcon(u"mail-inbox"_qs));
+    m_unreadStickyItem->setData(0, UnreadItemTagRole, true);
     m_unreadStickyItem->setData(0, StickyItemTagRole, true);
 
 
@@ -285,6 +296,8 @@ QTreeWidgetItem *FeedListWidget::createItem(RSS::Item *rssItem, QTreeWidgetItem 
         icon = rssFeedIcon(feed);
     else
         icon = UIThemeManager::instance()->getIcon(u"directory"_qs);
+
+    item->setData(0, StickyItemTagRole, (qobject_cast<RSS::Feed *>(rssItem) != nullptr));
     item->setData(0, Qt::DecorationRole, icon);
 
     connect(rssItem, &RSS::Item::unreadCountChanged, this, &FeedListWidget::handleItemUnreadCountChanged);
