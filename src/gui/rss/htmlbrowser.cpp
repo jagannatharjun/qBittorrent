@@ -42,6 +42,18 @@
 #include "base/path.h"
 #include "base/profile.h"
 
+namespace
+{
+    QImage fitImage(const QByteArray &data, const QSize &maxSize)
+    {
+        const auto image = QImage::fromData(data);
+        if (image.width() < maxSize.width() && image.height() < maxSize.height())
+            return image;
+
+        return image.scaled(maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+}
+
 HtmlBrowser::HtmlBrowser(QWidget *parent)
     : QTextBrowser(parent)
 {
@@ -71,26 +83,29 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
         if (Path(url.path()).hasExtension(u".gif"_qs))
             return {};
 
+        QByteArray data;
         QIODevice *dev = m_diskCache->data(url);
         if (dev)
         {
             qDebug() << "HtmlBrowser::loadResource() cache " << url.toString();
-            QByteArray res = dev->readAll();
+            data = dev->readAll();
             delete dev;
-            return res;
         }
-
-        if (!m_activeRequests.contains(url))
+        else if (!m_activeRequests.contains(url))
         {
-            m_activeRequests.insert(url, true);
+            m_activeRequests.insert(url);
             qDebug() << "HtmlBrowser::loadResource() get " << url.toString();
             QNetworkRequest req(url);
             req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
             QNetworkReply *reply = m_netManager->get(req);
             connect(reply, &QNetworkReply::downloadProgress, this, &HtmlBrowser::handleProgressChanged);
         }
+        else if (m_loading.contains(url))
+        {
+            data = m_loading.value(url);
+        }
 
-        return m_loading.value(url);
+        return fitImage(data, size().shrunkBy(QMargins(20, 20, 20, 20)));
     }
 
     return QTextBrowser::loadResource(type, name);
@@ -100,6 +115,7 @@ void HtmlBrowser::resourceLoaded(QNetworkReply *reply)
 {
     m_activeRequests.remove(reply->request().url());
     m_loading.remove(reply->request().url());
+    m_dirty.remove(reply);
 
     if ((reply->error() == QNetworkReply::NoError) && (reply->size() > 0))
     {
@@ -135,8 +151,7 @@ void HtmlBrowser::handleProgressChanged(qint64 , qint64 )
     if (!src)
         return;
 
-    qDebug() << "progress" << src->request().url();
-    m_loading[src->request().url()] = src->peek(src->bytesAvailable());
+    m_dirty.insert(src);
     enqueueRefresh();
 }
 
@@ -147,9 +162,18 @@ void HtmlBrowser::enqueueRefresh()
 
     m_refreshEnqueued = true;
 
-    QTimer::singleShot(100, this, [this]()
+    qDebug() << "HTMLBrowser::enqueueRefresh";
+
+    QTimer::singleShot(500, this, [this]()
     {
         m_refreshEnqueued = false;
+
+        for (auto reply : m_dirty)
+        {
+            m_loading[reply->request().url()] = reply->peek(reply->bytesAvailable());
+        }
+
+        m_dirty.clear();
 
         // Refresh the document display and keep scrollbars where they are
         int sx = horizontalScrollBar()->value();

@@ -49,8 +49,9 @@ public:
 protected:
     QNetworkAccessManager *m_netManager = nullptr;
     QNetworkDiskCache *m_diskCache = nullptr;
-    QHash<QUrl, bool> m_activeRequests;
+    QSet<QUrl> m_activeRequests;
     QHash<QUrl, QByteArray> m_loading;
+    QSet<QNetworkReply *> m_dirty;
     bool m_refreshEnqueued = false;
 
 protected slots:
