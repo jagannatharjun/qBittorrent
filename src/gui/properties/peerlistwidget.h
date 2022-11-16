@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <QBitArray>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QSet>
 #include <QTreeView>
@@ -52,6 +54,10 @@ namespace Net
     class ReverseResolution;
 }
 
+
+class PeerSpeedEstimator;
+
+
 class PeerListWidget final : public QTreeView
 {
     Q_OBJECT
@@ -75,6 +81,7 @@ public:
         RELEVANCE,
         DOWNLOADING_PIECE,
         IP_HIDDEN,
+        PEER_DOWN_SPEED,
 
         COL_COUNT
     };
@@ -109,5 +116,6 @@ private:
     Net::ReverseResolution *m_resolver = nullptr;
     QHash<PeerEndpoint, QStandardItem *> m_peerItems;
     QHash<QHostAddress, QSet<QStandardItem *>> m_itemsByIP;  // must be kept in sync with `m_peerItems`
+    PeerSpeedEstimator *m_peerSpeed;
     bool m_resolveCountries;
 };
