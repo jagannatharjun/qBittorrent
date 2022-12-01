@@ -47,7 +47,7 @@ namespace
     QImage fitImage(const QByteArray &data, const QSize &maxSize)
     {
         const auto image = QImage::fromData(data);
-        if (image.width() < maxSize.width() && image.height() < maxSize.height())
+        if (image.width() < maxSize.width())
             return image;
 
         return image.scaled(maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
