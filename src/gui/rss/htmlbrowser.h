@@ -31,6 +31,10 @@
 #include <QHash>
 #include <QTextBrowser>
 
+#include <QCache>
+#include <QThreadPool>
+#include <QFuture>
+
 class QNetworkAccessManager;
 class QNetworkDiskCache;
 class QNetworkReply;
@@ -50,9 +54,12 @@ protected:
     QNetworkAccessManager *m_netManager = nullptr;
     QNetworkDiskCache *m_diskCache = nullptr;
     QSet<QUrl> m_activeRequests;
-    QHash<QUrl, QByteArray> m_loading;
     QSet<QNetworkReply *> m_dirty;
+    QCache<QUrl, QImage> m_imageCache;
     bool m_refreshEnqueued = false;
+    bool m_pendingDataReloadEnqueued = false;
+    QThreadPool m_worker;
+    QHash<QUrl, QFuture<QImage>> m_queue;
 
 protected slots:
     void resourceLoaded(QNetworkReply *reply);
@@ -60,4 +67,6 @@ protected slots:
 private slots:
     void handleProgressChanged(qint64 bytesReceived, qint64 bytesTotal);
     void enqueueRefresh();
+    void asyncRead(QUrl url, QIODevice *device);
+    void asyncPeak(QNetworkReply *reply);
 };

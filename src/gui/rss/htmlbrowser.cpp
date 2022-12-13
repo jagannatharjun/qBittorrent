@@ -31,6 +31,9 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QDebug>
+#include <QFuture>
+#include <QBuffer>
+#include <QtConcurrent/QtConcurrent>
 #include <QNetworkDiskCache>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -57,6 +60,9 @@ namespace
 HtmlBrowser::HtmlBrowser(QWidget *parent)
     : QTextBrowser(parent)
 {
+    // required to serialize requests
+    m_worker.setMaxThreadCount(1);
+
     m_netManager = new QNetworkAccessManager(this);
     m_diskCache = new QNetworkDiskCache(this);
     m_diskCache->setCacheDirectory((specialFolderLocation(SpecialFolder::Cache) / Path(u"rss"_qs)).data());
@@ -69,6 +75,7 @@ HtmlBrowser::HtmlBrowser(QWidget *parent)
 
 HtmlBrowser::~HtmlBrowser()
 {
+    m_worker.waitForDone();
 }
 
 QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
@@ -83,13 +90,16 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
         if (Path(url.path()).hasExtension(u".gif"_qs))
             return {};
 
-        QByteArray data;
-        QIODevice *dev = m_diskCache->data(url);
-        if (dev)
+        auto image = m_imageCache.object(url);
+        if (image && !image->isNull())
+            return *image;
+
+        if (m_queue.contains(url))
+            return {};
+
+        if (QIODevice *dev = m_diskCache->data(url))
         {
-            qDebug() << "HtmlBrowser::loadResource() cache " << url.toString();
-            data = dev->readAll();
-            delete dev;
+            asyncRead(url, dev);
         }
         else if (!m_activeRequests.contains(url))
         {
@@ -100,12 +110,8 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
             QNetworkReply *reply = m_netManager->get(req);
             connect(reply, &QNetworkReply::downloadProgress, this, &HtmlBrowser::handleProgressChanged);
         }
-        else if (m_loading.contains(url))
-        {
-            data = m_loading.value(url);
-        }
 
-        return fitImage(data, size().shrunkBy(QMargins(20, 20, 20, 20)));
+        return {};
     }
 
     return QTextBrowser::loadResource(type, name);
@@ -114,12 +120,13 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
 void HtmlBrowser::resourceLoaded(QNetworkReply *reply)
 {
     m_activeRequests.remove(reply->request().url());
-    m_loading.remove(reply->request().url());
     m_dirty.remove(reply);
 
     if ((reply->error() == QNetworkReply::NoError) && (reply->size() > 0))
     {
         qDebug() << "HtmlBrowser::resourceLoaded() save " << reply->request().url().toString();
+
+        asyncPeak(reply);
     }
     else
     {
@@ -140,19 +147,32 @@ void HtmlBrowser::resourceLoaded(QNetworkReply *reply)
 
         QApplication::style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(32, 32).save(dev, "PNG");
         m_diskCache->insert(dev);
-    }
 
-    enqueueRefresh();
+        enqueueRefresh();
+    }
 }
 
-void HtmlBrowser::handleProgressChanged(qint64 , qint64 )
+void HtmlBrowser::handleProgressChanged(qint64 bytesReceived, qint64 bytesTotal)
 {
     QNetworkReply *src = qobject_cast<QNetworkReply *>(sender());
     if (!src)
         return;
 
     m_dirty.insert(src);
-    enqueueRefresh();
+    if (m_pendingDataReloadEnqueued)
+        return;
+
+    m_pendingDataReloadEnqueued = true;
+    QTimer::singleShot(500, this, [this]()
+    {
+        m_pendingDataReloadEnqueued = false;
+
+        for (auto reply : qAsConst(m_dirty))
+            asyncPeak(reply);
+
+        m_dirty.clear();
+    });
+
 }
 
 void HtmlBrowser::enqueueRefresh()
@@ -164,16 +184,9 @@ void HtmlBrowser::enqueueRefresh()
 
     qDebug() << "HTMLBrowser::enqueueRefresh";
 
-    QTimer::singleShot(500, this, [this]()
+    QTimer::singleShot(100, this, [this]()
     {
         m_refreshEnqueued = false;
-
-        for (auto reply : m_dirty)
-        {
-            m_loading[reply->request().url()] = reply->peek(reply->bytesAvailable());
-        }
-
-        m_dirty.clear();
 
         // Refresh the document display and keep scrollbars where they are
         int sx = horizontalScrollBar()->value();
@@ -182,4 +195,32 @@ void HtmlBrowser::enqueueRefresh()
         horizontalScrollBar()->setValue(sx);
         verticalScrollBar()->setValue(sy);
     });
+}
+
+void HtmlBrowser::asyncRead(QUrl url, QIODevice *device)
+{
+    const QSize maxSize = size().shrunkBy(QMargins(20, 20, 20, 20));
+    if (m_queue.contains(url))
+        m_queue[url].cancel();
+
+    (m_queue[url] = QtConcurrent::run(&m_worker, [device, maxSize]()
+    {
+        auto data = device->readAll();
+        device->deleteLater();
+        return QImage(fitImage(data, maxSize));
+    })).then(this, [this, url](QImage image)
+    {
+        m_imageCache.insert(url, new QImage(image));
+        m_queue.remove(url);
+        enqueueRefresh();
+    });
+}
+
+void HtmlBrowser::asyncPeak(QNetworkReply *reply)
+{
+    const auto url = reply->request().url();
+    auto buffer = new QBuffer();
+    buffer->setData(reply->peek(reply->bytesAvailable()));
+    buffer->open(QIODevice::ReadOnly);
+    asyncRead(url, buffer);
 }
