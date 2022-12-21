@@ -51,11 +51,12 @@ public:
     QVariant loadResource(int type, const QUrl &name) override;
 
 protected:
+    class ImageCache;
+
     QNetworkAccessManager *m_netManager = nullptr;
-    QNetworkDiskCache *m_diskCache = nullptr;
     QSet<QUrl> m_activeRequests;
     QSet<QNetworkReply *> m_dirty;
-    QCache<QUrl, QImage> m_imageCache;
+    std::unique_ptr<ImageCache> m_imageCache;
     bool m_refreshEnqueued = false;
     bool m_pendingDataReloadEnqueued = false;
     QThreadPool m_worker;

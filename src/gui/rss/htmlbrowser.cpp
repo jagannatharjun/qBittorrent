@@ -55,22 +55,88 @@ namespace
 
         return image.scaled(maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
+
 }
+
+class HtmlBrowser::ImageCache : public QObject
+{
+    const int CLEAN_TIMEOUT = 100000;
+
+public:
+    ImageCache()
+    {
+        auto timer = new QTimer(this);
+        connect(timer, &QTimer::timeout, this, &ImageCache::clean);
+        timer->start(CLEAN_TIMEOUT);
+    }
+
+    void insert(QUrl url, QImage image)
+    {
+        if (m_map.contains(url))
+        {
+            m_list.erase(m_map[url]);
+            m_map.remove(url);
+        }
+
+        data d;
+        d.url = url;
+        d.image = image;
+        d.timer.start();
+
+        m_list.push_front(d);
+        m_map[url] = m_list.begin();
+    }
+
+    QImage value(QUrl url)
+    {
+        if (!m_map.contains(url))
+            return {};
+
+        auto iter = m_map[url];
+        auto data = *iter;
+        m_list.erase(iter); // NOTE: iter is not invalidated
+
+        data.timer.restart();
+        m_list.push_front(data);
+        m_map[url] = m_list.begin();
+        return data.image;
+    }
+
+    bool contains(const QUrl &url) const
+    {
+        return m_map.contains(url);
+    }
+
+private:
+    void clean()
+    {
+        while (!m_list.empty() && m_list.back().timer.hasExpired(CLEAN_TIMEOUT))
+        {
+            auto data = m_list.rbegin();
+            qDebug() << "HTMLBrowser::ImageCache clean" << data->url;
+
+            m_map.remove(data->url);
+            m_list.pop_back();
+        }
+    }
+
+    struct data { QUrl url; QImage image; QElapsedTimer timer {}; };
+    QHash<QUrl, std::list<data>::iterator> m_map;
+    std::list<data> m_list;
+};
+
 
 HtmlBrowser::HtmlBrowser(QWidget *parent)
     : QTextBrowser(parent)
+    , m_imageCache {std::make_unique<ImageCache>()}
 {
     // required to serialize requests
     m_worker.setMaxThreadCount(1);
 
     m_netManager = new QNetworkAccessManager(this);
-    m_diskCache = new QNetworkDiskCache(this);
-    m_diskCache->setCacheDirectory((specialFolderLocation(SpecialFolder::Cache) / Path(u"rss"_qs)).data());
-    m_diskCache->setMaximumCacheSize(50 * 1024 * 1024);
-    qDebug() << "HtmlBrowser  cache path:" << m_diskCache->cacheDirectory() << " max size:" << m_diskCache->maximumCacheSize() / 1024 / 1024 << "MB";
-    m_netManager->setCache(m_diskCache);
 
     connect(m_netManager, &QNetworkAccessManager::finished, this, &HtmlBrowser::resourceLoaded);
+
 }
 
 HtmlBrowser::~HtmlBrowser()
@@ -90,18 +156,13 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
         if (Path(url.path()).hasExtension(u".gif"_qs))
             return {};
 
-        auto image = m_imageCache.object(url);
-        if (image && !image->isNull())
-            return *image;
+        if (m_imageCache->contains(url))
+            return m_imageCache->value(url);
 
         if (m_queue.contains(url))
             return {};
 
-        if (QIODevice *dev = m_diskCache->data(url))
-        {
-            asyncRead(url, dev);
-        }
-        else if (!m_activeRequests.contains(url))
+        if (!m_activeRequests.contains(url))
         {
             m_activeRequests.insert(url);
             qDebug() << "HtmlBrowser::loadResource() get " << url.toString();
@@ -119,34 +180,24 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
 
 void HtmlBrowser::resourceLoaded(QNetworkReply *reply)
 {
-    m_activeRequests.remove(reply->request().url());
+    const auto url = reply->request().url();
+    m_activeRequests.remove(url);
     m_dirty.remove(reply);
+    if (m_queue.contains(url))
+    {
+        m_queue[url].cancel();
+        m_queue.remove(url);
+    }
 
     if ((reply->error() == QNetworkReply::NoError) && (reply->size() > 0))
     {
-        qDebug() << "HtmlBrowser::resourceLoaded() save " << reply->request().url().toString();
-
         asyncPeak(reply);
     }
     else
     {
-        // If resource failed to load, replace it with warning icon and store it in cache for 1 day.
-        // Otherwise HTMLBrowser will keep trying to download it every time article is displayed,
-        // since it's not possible to cache error responses.
-        QNetworkCacheMetaData metaData;
-        QNetworkCacheMetaData::AttributesMap atts;
-        metaData.setUrl(reply->request().url());
-        metaData.setSaveToDisk(true);
-        atts[QNetworkRequest::HttpStatusCodeAttribute] = 200;
-        atts[QNetworkRequest::HttpReasonPhraseAttribute] = u"Ok"_qs;
-        metaData.setAttributes(atts);
-        metaData.setLastModified(QDateTime::currentDateTime());
-        metaData.setExpirationDate(QDateTime::currentDateTime().addDays(1));
-        QIODevice *dev = m_diskCache->prepare(metaData);
-        if (!dev) return;
-
-        QApplication::style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(32, 32).save(dev, "PNG");
-        m_diskCache->insert(dev);
+        // If resource failed to load, replace it with warning icon and store it in cache
+        auto warning = QApplication::style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(32, 32).toImage();
+        m_imageCache->insert(reply->request().url(), warning);
 
         enqueueRefresh();
     }
@@ -182,8 +233,6 @@ void HtmlBrowser::enqueueRefresh()
 
     m_refreshEnqueued = true;
 
-    qDebug() << "HTMLBrowser::enqueueRefresh";
-
     QTimer::singleShot(100, this, [this]()
     {
         m_refreshEnqueued = false;
@@ -194,6 +243,8 @@ void HtmlBrowser::enqueueRefresh()
         document()->setHtml(document()->toHtml());
         horizontalScrollBar()->setValue(sx);
         verticalScrollBar()->setValue(sy);
+
+        setReadOnly(true);
     });
 }
 
@@ -210,7 +261,7 @@ void HtmlBrowser::asyncRead(QUrl url, QIODevice *device)
         return QImage(fitImage(data, maxSize));
     })).then(this, [this, url](QImage image)
     {
-        m_imageCache.insert(url, new QImage(image));
+        m_imageCache->insert(url, image);
         m_queue.remove(url);
         enqueueRefresh();
     });
