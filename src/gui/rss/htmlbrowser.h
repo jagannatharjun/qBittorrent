@@ -31,9 +31,9 @@
 #include <QHash>
 #include <QTextBrowser>
 
-#include <QCache>
-#include <QThreadPool>
-#include <QFuture>
+#include <QMutex>
+#include <QThread>
+
 
 class QNetworkAccessManager;
 class QNetworkDiskCache;

@@ -31,10 +31,8 @@
 #include <QApplication>
 #include <QDateTime>
 #include <QDebug>
-#include <QFuture>
 #include <QImageReader>
 #include <QBuffer>
-#include <QtConcurrent/QtConcurrent>
 #include <QNetworkDiskCache>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -207,7 +205,8 @@ void HtmlBrowser::resourceLoaded(const QUrl &url, QImage image)
 
 void HtmlBrowser::resizeEvent(QResizeEvent *event)
 {
-    QSize loadSize = size().shrunkBy(QMargins(10, 10, 10, 10));
+    auto scrollBarWidth = style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    QSize loadSize = size().shrunkBy(QMargins(0, 0, scrollBarWidth + 24, 0));
     m_imageLoader->setMaxLoadSize(loadSize);
 
     QTextBrowser::resizeEvent(event);
