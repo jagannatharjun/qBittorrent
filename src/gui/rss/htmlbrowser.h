@@ -87,7 +87,7 @@ public:
     explicit HtmlBrowser(QWidget* parent = nullptr);
     ~HtmlBrowser();
 
-    void setHtml(const QString &html);
+    void setContentHTML(const QString &html);
     QVariant loadResource(int type, const QUrl &name) override;
 
 private slots:

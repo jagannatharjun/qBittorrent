@@ -167,7 +167,7 @@ HtmlBrowser::~HtmlBrowser()
     m_workerThread.wait();
 }
 
-void HtmlBrowser::setHtml(const QString &html)
+void HtmlBrowser::setContentHTML(const QString &html)
 {
     qDebug("Abort downloads");
     m_imageLoader->abortDownloads();

@@ -524,7 +524,7 @@ void RSSWidget::handleCurrentArticleItemChanged(QListWidgetItem *currentItem, QL
         html += u"<pre>" + description + u"</pre>";
     }
     html += u"</div>";
-    m_ui->textBrowser->setHtml(html);
+    m_ui->textBrowser->setContentHTML(html);
 }
 
 void RSSWidget::saveSlidersPosition()
