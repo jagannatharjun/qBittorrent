@@ -65,17 +65,16 @@ private slots:
 
     void readIncompleteImages();
 
-    bool loading(const QUrl &url);
     void _loadImpl(const QUrl &url);
 
 private:
     QNetworkAccessManager *m_netManager = nullptr;
     QSet<QNetworkReply *> m_dirty;
+    QSet<QUrl> m_activeRequests;
     bool m_readIncompleteImagesEnqueued = false;
 
     mutable QMutex m_lock;
     // follwing variables are protected under 'lock'
-    QSet<QUrl> m_active;
     QSize m_maxLoadSize {};
 };
 

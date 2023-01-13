@@ -94,7 +94,6 @@ public:
         d.image = image;
         d.timer.start();
         m_sizeInBytes += image.sizeInBytes();
-        qDebug() << url << image.sizeInBytes() / (1024. * 1024.);
 
         m_list.push_front(d);
         m_map[url] = m_list.begin();
@@ -258,12 +257,6 @@ void NetImageLoader::load(const QUrl &url)
     QMetaObject::invokeMethod(this, [this, url]() { _loadImpl(url); });
 }
 
-bool NetImageLoader::loading(const QUrl &url)
-{
-    QMutexLocker locker(&m_lock);
-    return m_active.contains(url);
-}
-
 const QSize &NetImageLoader::maxLoadSize() const
 {
     QMutexLocker locker(&m_lock);
@@ -278,29 +271,23 @@ void NetImageLoader::setMaxLoadSize(const QSize &newMaxLoadSize)
 
 void NetImageLoader::_loadImpl(const QUrl &url)
 {
-    {
-        QMutexLocker locker(&m_lock);
-        if (m_active.contains(url))
-            return;
-
-        m_active.insert(url);
-    }
+    if (m_activeRequests.contains(url))
+        return;
 
     qDebug() << "NetImageLoader::load() get " << url.toString();
+    m_activeRequests.insert(url);
 
     auto reply = m_netManager->get(QNetworkRequest(url));
     connect(reply, &QNetworkReply::downloadProgress, this, &NetImageLoader::handleProgressUpdated);
 
     connect(this, &NetImageLoader::abortDownloads, reply, [this, reply]()
     {
-        qDebug() << "NetImageLoader::load() abort" << reply->request().url();
+        qDebug() << "NetImageLoader::abortDownloads abort" << reply->request().url();
 
-        {
-            QMutexLocker locker(&m_lock);
-            m_active.remove(reply->request().url());
-        }
 
+        m_activeRequests.remove(reply->request().url());
         m_dirty.remove(reply);
+
         reply->abort();
         reply->deleteLater();
     });
@@ -310,14 +297,8 @@ void NetImageLoader::handleReplyFinished(QNetworkReply *reply)
 {
     m_dirty.remove(reply);
 
-    QSize loadSize;
-
-    {
-        QMutexLocker locker(&m_lock);
-        loadSize = m_maxLoadSize;
-
-        m_active.remove(reply->url());
-    }
+    QSize loadSize = maxLoadSize();
+    m_activeRequests.remove(reply->url());
 
     emit finished(reply->url(), fitImage(reply, loadSize));
     reply->deleteLater();
