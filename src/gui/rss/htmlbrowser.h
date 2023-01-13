@@ -57,6 +57,8 @@ signals:
     void updated(const QUrl &url, QImage incompleteImage);
     void finished(const QUrl &url, QImage image);
 
+    void abortDownloads();
+
 private slots:
     void handleReplyFinished(QNetworkReply *reply);
     void handleProgressUpdated();
@@ -86,6 +88,7 @@ public:
     explicit HtmlBrowser(QWidget* parent = nullptr);
     ~HtmlBrowser();
 
+    void setHtml(const QString &html);
     QVariant loadResource(int type, const QUrl &name) override;
 
 private slots:

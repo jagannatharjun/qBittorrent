@@ -168,6 +168,13 @@ HtmlBrowser::~HtmlBrowser()
     m_workerThread.wait();
 }
 
+void HtmlBrowser::setHtml(const QString &html)
+{
+    qDebug("Abort downloads");
+    m_imageLoader->abortDownloads();
+    QTextBrowser::setHtml(html);
+}
+
 QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
 {
     if (type == QTextDocument::ImageResource)
@@ -283,6 +290,20 @@ void NetImageLoader::_loadImpl(const QUrl &url)
 
     auto reply = m_netManager->get(QNetworkRequest(url));
     connect(reply, &QNetworkReply::downloadProgress, this, &NetImageLoader::handleProgressUpdated);
+
+    connect(this, &NetImageLoader::abortDownloads, reply, [this, reply]()
+    {
+        qDebug() << "NetImageLoader::load() abort" << reply->request().url();
+
+        {
+            QMutexLocker locker(&m_lock);
+            m_active.remove(reply->request().url());
+        }
+
+        m_dirty.remove(reply);
+        reply->abort();
+        reply->deleteLater();
+    });
 }
 
 void NetImageLoader::handleReplyFinished(QNetworkReply *reply)
@@ -331,6 +352,7 @@ void NetImageLoader::readIncompleteImages()
         QBuffer ioBuffer;
         ioBuffer.setBuffer(&buf);
 
+        qDebug() << "NetImageLoader::readIncompleteImages" << reply->url() << buf.size();
         emit updated(reply->url(), fitImage(&ioBuffer, loadSize));
     }
 
