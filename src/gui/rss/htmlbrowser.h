@@ -39,6 +39,44 @@ class QNetworkAccessManager;
 class QNetworkDiskCache;
 class QNetworkReply;
 
+class NetImageLoader : public QObject
+{
+    Q_OBJECT
+public:
+    NetImageLoader(QObject *parent = nullptr);
+    ~NetImageLoader();
+
+    // all public functions are reentarent
+
+    void load(const QUrl &url);
+
+    const QSize &maxLoadSize() const;
+    void setMaxLoadSize(const QSize &newMaxLoadSize);
+
+signals:
+    void updated(const QUrl &url, QImage incompleteImage);
+    void finished(const QUrl &url, QImage image);
+
+private slots:
+    void handleReplyFinished(QNetworkReply *reply);
+    void handleProgressUpdated();
+
+    void readIncompleteImages();
+
+    bool loading(const QUrl &url);
+    void _loadImpl(const QUrl &url);
+
+private:
+    QNetworkAccessManager *m_netManager = nullptr;
+    QSet<QNetworkReply *> m_dirty;
+    bool m_readIncompleteImagesEnqueued = false;
+
+    mutable QMutex m_lock;
+    // follwing variables are protected under 'lock'
+    QSet<QUrl> m_active;
+    QSize m_maxLoadSize {};
+};
+
 class HtmlBrowser final : public QTextBrowser
 {
     Q_OBJECT
@@ -50,24 +88,19 @@ public:
 
     QVariant loadResource(int type, const QUrl &name) override;
 
+private slots:
+    void enqueueRefresh();
+    void resourceLoaded(const QUrl &url, const QImage image);
+
 protected:
+    void resizeEvent(QResizeEvent *event) override;
+
+private:
     class ImageCache;
 
-    QNetworkAccessManager *m_netManager = nullptr;
-    QSet<QUrl> m_activeRequests;
-    QSet<QNetworkReply *> m_dirty;
-    std::unique_ptr<ImageCache> m_imageCache;
     bool m_refreshEnqueued = false;
-    bool m_pendingDataReloadEnqueued = false;
-    QThreadPool m_worker;
-    QHash<QUrl, QFuture<QImage>> m_queue;
-
-protected slots:
-    void resourceLoaded(QNetworkReply *reply);
-
-private slots:
-    void handleProgressChanged(qint64 bytesReceived, qint64 bytesTotal);
-    void enqueueRefresh();
-    void asyncRead(QUrl url, QIODevice *device);
-    void asyncPeak(QNetworkReply *reply);
+    QThread m_workerThread;
+    std::unique_ptr<NetImageLoader> m_imageLoader;
+    std::unique_ptr<ImageCache> m_imageCache;
 };
+

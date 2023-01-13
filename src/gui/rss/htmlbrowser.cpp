@@ -32,6 +32,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QFuture>
+#include <QImageReader>
 #include <QBuffer>
 #include <QtConcurrent/QtConcurrent>
 #include <QNetworkDiskCache>
@@ -47,10 +48,19 @@
 
 namespace
 {
-    QImage fitImage(const QByteArray &data, const QSize &maxSize)
+    QImage fitImage(QIODevice *device, const QSize &maxSize)
     {
-        const auto image = QImage::fromData(data);
-        if (image.width() < maxSize.width())
+        QImageReader reader;
+        reader.setDevice(device);
+
+        const auto expectedSize = reader.size();
+        if (expectedSize.width() > maxSize.width())
+        {
+            reader.setScaledSize(expectedSize.scaled(maxSize, Qt::KeepAspectRatio));
+        }
+
+        const auto image = reader.read();
+        if (image.width() <= maxSize.width())
             return image;
 
         return image.scaled(maxSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
@@ -60,7 +70,8 @@ namespace
 
 class HtmlBrowser::ImageCache : public QObject
 {
-    const int CLEAN_TIMEOUT = 100000;
+    const int CLEAN_TIMEOUT = 50000;
+    const int MAX_SIZE_IN_BYTES = 100 * 1024 * 1024;
 
 public:
     ImageCache()
@@ -74,6 +85,8 @@ public:
     {
         if (m_map.contains(url))
         {
+            m_sizeInBytes -= m_map[url]->image.sizeInBytes();
+
             m_list.erase(m_map[url]);
             m_map.remove(url);
         }
@@ -82,6 +95,8 @@ public:
         d.url = url;
         d.image = image;
         d.timer.start();
+        m_sizeInBytes += image.sizeInBytes();
+        qDebug() << url << image.sizeInBytes() / (1024. * 1024.);
 
         m_list.push_front(d);
         m_map[url] = m_list.begin();
@@ -110,10 +125,16 @@ public:
 private:
     void clean()
     {
-        while (!m_list.empty() && m_list.back().timer.hasExpired(CLEAN_TIMEOUT))
+        while (!m_list.empty()
+               && (m_sizeInBytes >= MAX_SIZE_IN_BYTES
+                   || m_list.back().timer.hasExpired(CLEAN_TIMEOUT)))
         {
             auto data = m_list.rbegin();
-            qDebug() << "HTMLBrowser::ImageCache clean" << data->url;
+
+            m_sizeInBytes -= data->image.sizeInBytes();
+            assert(m_sizeInBytes >= 0);
+
+            qDebug() << "HTMLBrowser::ImageCache clean" << data->url << "new sizeInBytes" << (m_sizeInBytes / (1024. * 1024.));
 
             m_map.remove(data->url);
             m_list.pop_back();
@@ -123,25 +144,30 @@ private:
     struct data { QUrl url; QImage image; QElapsedTimer timer {}; };
     QHash<QUrl, std::list<data>::iterator> m_map;
     std::list<data> m_list;
+    int64_t m_sizeInBytes = 0;
 };
+
 
 
 HtmlBrowser::HtmlBrowser(QWidget *parent)
     : QTextBrowser(parent)
+    , m_imageLoader {std::make_unique<NetImageLoader>()}
     , m_imageCache {std::make_unique<ImageCache>()}
 {
-    // required to serialize requests
-    m_worker.setMaxThreadCount(1);
+    m_workerThread.start();
 
-    m_netManager = new QNetworkAccessManager(this);
+    m_imageLoader->moveToThread(&m_workerThread);
 
-    connect(m_netManager, &QNetworkAccessManager::finished, this, &HtmlBrowser::resourceLoaded);
-
+    connect(m_imageLoader.get(), &NetImageLoader::finished, this, &HtmlBrowser::resourceLoaded);
+    connect(m_imageLoader.get(), &NetImageLoader::updated, this, &HtmlBrowser::resourceLoaded);
 }
 
 HtmlBrowser::~HtmlBrowser()
 {
-    m_worker.waitForDone();
+    m_imageLoader.release();
+
+    m_workerThread.quit();
+    m_workerThread.wait();
 }
 
 QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
@@ -159,71 +185,32 @@ QVariant HtmlBrowser::loadResource(int type, const QUrl &name)
         if (m_imageCache->contains(url))
             return m_imageCache->value(url);
 
-        if (m_queue.contains(url))
-            return {};
-
-        if (!m_activeRequests.contains(url))
-        {
-            m_activeRequests.insert(url);
-            qDebug() << "HtmlBrowser::loadResource() get " << url.toString();
-            QNetworkRequest req(url);
-            req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
-            QNetworkReply *reply = m_netManager->get(req);
-            connect(reply, &QNetworkReply::downloadProgress, this, &HtmlBrowser::handleProgressChanged);
-        }
-
+        m_imageLoader->load(url);
         return {};
     }
 
     return QTextBrowser::loadResource(type, name);
 }
 
-void HtmlBrowser::resourceLoaded(QNetworkReply *reply)
+void HtmlBrowser::resourceLoaded(const QUrl &url, QImage image)
 {
-    const auto url = reply->request().url();
-    m_activeRequests.remove(url);
-    m_dirty.remove(reply);
-    if (m_queue.contains(url))
-    {
-        m_queue[url].cancel();
-        m_queue.remove(url);
-    }
 
-    if ((reply->error() == QNetworkReply::NoError) && (reply->size() > 0))
-    {
-        asyncPeak(reply);
-    }
-    else
+    if (image.isNull())
     {
         // If resource failed to load, replace it with warning icon and store it in cache
-        auto warning = QApplication::style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(32, 32).toImage();
-        m_imageCache->insert(reply->request().url(), warning);
-
-        enqueueRefresh();
+        image = QApplication::style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(32, 32).toImage();
     }
+
+    m_imageCache->insert(url, image);
+    enqueueRefresh();
 }
 
-void HtmlBrowser::handleProgressChanged(qint64 bytesReceived, qint64 bytesTotal)
+void HtmlBrowser::resizeEvent(QResizeEvent *event)
 {
-    QNetworkReply *src = qobject_cast<QNetworkReply *>(sender());
-    if (!src)
-        return;
+    QSize loadSize = size().shrunkBy(QMargins(10, 10, 10, 10));
+    m_imageLoader->setMaxLoadSize(loadSize);
 
-    m_dirty.insert(src);
-    if (m_pendingDataReloadEnqueued)
-        return;
-
-    m_pendingDataReloadEnqueued = true;
-    QTimer::singleShot(500, this, [this]()
-    {
-        m_pendingDataReloadEnqueued = false;
-
-        for (auto reply : qAsConst(m_dirty))
-            asyncPeak(reply);
-
-        m_dirty.clear();
-    });
-
+    QTextBrowser::resizeEvent(event);
 }
 
 void HtmlBrowser::enqueueRefresh()
@@ -233,7 +220,7 @@ void HtmlBrowser::enqueueRefresh()
 
     m_refreshEnqueued = true;
 
-    QTimer::singleShot(100, this, [this]()
+    QTimer::singleShot(200, this, [this]()
     {
         m_refreshEnqueued = false;
 
@@ -248,30 +235,106 @@ void HtmlBrowser::enqueueRefresh()
     });
 }
 
-void HtmlBrowser::asyncRead(QUrl url, QIODevice *device)
+NetImageLoader::NetImageLoader(QObject *parent)
+    : QObject {parent}
+    , m_netManager {new QNetworkAccessManager(this)}
 {
-    const QSize maxSize = size().shrunkBy(QMargins(20, 20, 20, 20));
-    if (m_queue.contains(url))
-        m_queue[url].cancel();
-
-    (m_queue[url] = QtConcurrent::run(&m_worker, [device, maxSize]()
-    {
-        auto data = device->readAll();
-        device->deleteLater();
-        return QImage(fitImage(data, maxSize));
-    })).then(this, [this, url](QImage image)
-    {
-        m_imageCache->insert(url, image);
-        m_queue.remove(url);
-        enqueueRefresh();
-    });
+    connect(m_netManager, &QNetworkAccessManager::finished, this, &NetImageLoader::handleReplyFinished);
 }
 
-void HtmlBrowser::asyncPeak(QNetworkReply *reply)
+NetImageLoader::~NetImageLoader()
 {
-    const auto url = reply->request().url();
-    auto buffer = new QBuffer();
-    buffer->setData(reply->peek(reply->bytesAvailable()));
-    buffer->open(QIODevice::ReadOnly);
-    asyncRead(url, buffer);
+    delete m_netManager;
 }
+
+void NetImageLoader::load(const QUrl &url)
+{
+    QMetaObject::invokeMethod(this, [this, url]() { _loadImpl(url); });
+}
+
+bool NetImageLoader::loading(const QUrl &url)
+{
+    QMutexLocker locker(&m_lock);
+    return m_active.contains(url);
+}
+
+const QSize &NetImageLoader::maxLoadSize() const
+{
+    QMutexLocker locker(&m_lock);
+    return m_maxLoadSize;
+}
+
+void NetImageLoader::setMaxLoadSize(const QSize &newMaxLoadSize)
+{
+    QMutexLocker locker(&m_lock);
+    m_maxLoadSize = newMaxLoadSize;
+}
+
+void NetImageLoader::_loadImpl(const QUrl &url)
+{
+    {
+        QMutexLocker locker(&m_lock);
+        if (m_active.contains(url))
+            return;
+
+        m_active.insert(url);
+    }
+
+    qDebug() << "NetImageLoader::load() get " << url.toString();
+
+    auto reply = m_netManager->get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::downloadProgress, this, &NetImageLoader::handleProgressUpdated);
+}
+
+void NetImageLoader::handleReplyFinished(QNetworkReply *reply)
+{
+    m_dirty.remove(reply);
+
+    QSize loadSize;
+
+    {
+        QMutexLocker locker(&m_lock);
+        loadSize = m_maxLoadSize;
+
+        m_active.remove(reply->url());
+    }
+
+    emit finished(reply->url(), fitImage(reply, loadSize));
+    reply->deleteLater();
+}
+
+void NetImageLoader::handleProgressUpdated()
+{
+    QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
+    assert(reply);
+
+    m_dirty.insert(reply);
+    if (m_readIncompleteImagesEnqueued)
+        return;
+
+    m_readIncompleteImagesEnqueued = true;
+    QTimer::singleShot(500, this, &NetImageLoader::readIncompleteImages);
+}
+
+void NetImageLoader::readIncompleteImages()
+{
+    m_readIncompleteImagesEnqueued = false;
+
+    auto loadSize = maxLoadSize();
+
+    QByteArray buf;
+    for (auto reply : qAsConst(m_dirty))
+    {
+        buf.resize(reply->bytesAvailable());
+        auto read = reply->peek(buf.data(), reply->bytesAvailable());
+        buf.resize(read);
+
+        QBuffer ioBuffer;
+        ioBuffer.setBuffer(&buf);
+
+        emit updated(reply->url(), fitImage(&ioBuffer, loadSize));
+    }
+
+    m_dirty.clear();
+}
+
