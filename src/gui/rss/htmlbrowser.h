@@ -44,7 +44,6 @@ class NetImageLoader : public QObject
     Q_OBJECT
 public:
     NetImageLoader(QObject *parent = nullptr);
-    ~NetImageLoader();
 
     // all public functions are reentarent
 
@@ -54,8 +53,7 @@ public:
     void setMaxLoadSize(const QSize &newMaxLoadSize);
 
 signals:
-    void updated(const QUrl &url, QImage incompleteImage);
-    void finished(const QUrl &url, QImage image);
+    void updated(const QUrl &url, QImage image, bool incomplete);
 
     void abortDownloads();
 
@@ -68,7 +66,7 @@ private slots:
     void _loadImpl(const QUrl &url);
 
 private:
-    QNetworkAccessManager *m_netManager = nullptr;
+    std::unique_ptr<QNetworkAccessManager> m_netManager = nullptr;
     QSet<QNetworkReply *> m_dirty;
     QSet<QUrl> m_activeRequests;
     bool m_readIncompleteImagesEnqueued = false;
@@ -92,7 +90,7 @@ public:
 
 private slots:
     void enqueueRefresh();
-    void resourceLoaded(const QUrl &url, const QImage image);
+    void resourceLoaded(const QUrl &url, const QImage image, bool pending = false);
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
