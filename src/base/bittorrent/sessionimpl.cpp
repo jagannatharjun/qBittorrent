@@ -5477,6 +5477,28 @@ void SessionImpl::handleSessionStatsAlert(const lt::session_stats_alert *p)
         return (((current - previous) * lt::microseconds(1s).count()) / interval);
     };
 
+    const auto calcAverage = [interval, &calcRate](qint64 &average, const qint64 previous, const qint64 current)
+    {
+        Q_ASSERT(current >= previous);
+        Q_ASSERT(interval >= 0);
+
+        // take 5sec rolling average to match torrent download rates
+        // which are 5sec rolling average
+        const double span = 5;
+        const double interval_s = interval / 1e6;
+
+        if (interval_s >= span)
+        {
+            average = calcRate(previous, current);
+            return;
+        }
+
+        average = (average * (span - interval_s)) / span + (current - previous) / span;
+    };
+
+    calcAverage(m_status.payloadDownloadRate5Sec, m_status.totalPayloadDownload, totalPayloadDownload);
+    calcAverage(m_status.payloadUploadRate5Sec, m_status.totalPayloadUpload, totalPayloadUpload);
+
     m_status.payloadDownloadRate = calcRate(m_status.totalPayloadDownload, totalPayloadDownload);
     m_status.payloadUploadRate = calcRate(m_status.totalPayloadUpload, totalPayloadUpload);
     m_status.downloadRate = calcRate(m_status.totalDownload, totalDownload);
