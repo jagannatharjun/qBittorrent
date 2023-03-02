@@ -536,59 +536,34 @@ void TorrentContentModel::clear()
 
 void TorrentContentModel::setupModelData(const BitTorrent::AbstractFileStorage &info)
 {
-    qDebug("setup model data called");
-    const int filesCount = info.filesCount();
-    if (filesCount <= 0)
-        return;
+    if (info.filesCount() <= 0)
+        return; // highly unlikely
+
+    beginResetModel();
+    resetModelTree(info);
+    endResetModel();
+}
+
+void TorrentContentModel::setupModelData(const BitTorrent::AbstractFileStorage &info
+                                         , const QVector<qreal> &fp
+                                         , const QVector<BitTorrent::DownloadPriority> &fprio
+                                         , const QVector<qreal> &fa)
+{
+    if (info.filesCount() <= 0)
+        return; // highly unlikely
 
     beginResetModel();
 
-    // Initialize files_index array
-    qDebug("Torrent contains %d files", filesCount);
-    m_filesIndex.reserve(filesCount);
-
-    QHash<TorrentContentModelFolder *, QHash<QString, TorrentContentModelFolder *>> folderMap;
-    QVector<QString> lastParentPath;
-    TorrentContentModelFolder *lastParent = m_rootItem;
-    // Iterate over files
-    for (int i = 0; i < filesCount; ++i)
+    resetModelTree(info);
+    for (int i = 0; i < m_filesIndex.size(); ++i)
     {
-        const QString path = info.filePath(i).data();
-
-        // Iterate of parts of the path to create necessary folders
-        QList<QStringView> pathFolders = QStringView(path).split(u'/', Qt::SkipEmptyParts);
-        const QString fileName = pathFolders.takeLast().toString();
-
-        if (!std::equal(lastParentPath.begin(), lastParentPath.end()
-                        , pathFolders.begin(), pathFolders.end()))
-        {
-            lastParentPath.clear();
-            lastParentPath.reserve(pathFolders.size());
-
-            // rebuild the path from the root
-            lastParent = m_rootItem;
-            for (const QStringView pathPart : asConst(pathFolders))
-            {
-                const QString folderName = pathPart.toString();
-                lastParentPath.push_back(folderName);
-
-                TorrentContentModelFolder *&newParent = folderMap[lastParent][folderName];
-                if (!newParent)
-                {
-                    newParent = new TorrentContentModelFolder(folderName, lastParent);
-                    lastParent->appendChild(newParent);
-                }
-
-                lastParent = newParent;
-            }
-        }
-
-        // Actually create the file
-        TorrentContentModelFile *fileItem = new TorrentContentModelFile(
-                    fileName, info.fileSize(i), lastParent, i);
-        lastParent->appendChild(fileItem);
-        m_filesIndex.push_back(fileItem);
+        m_filesIndex[i]->setProgress(fp[i]);
+        m_filesIndex[i]->setPriority(fprio[i]);
+        m_filesIndex[i]->setAvailability(fa[i]);
     }
+
+    m_rootItem->recalculateProgress();
+    m_rootItem->recalculateAvailability();
 
     endResetModel();
 }
@@ -641,5 +616,58 @@ void TorrentContentModel::notifySubtreeUpdated(const QModelIndex &index, const Q
             if (hasChildren(sibling))
                 parentIndexes.push_back(sibling);
         }
+    }
+}
+
+void TorrentContentModel::resetModelTree(const BitTorrent::AbstractFileStorage &info)
+{
+    const int filesCount = info.filesCount();
+
+    // Initialize files_index array
+    qDebug("Torrent contains %d files", filesCount);
+    m_filesIndex.reserve(filesCount);
+
+    QHash<TorrentContentModelFolder *, QHash<QString, TorrentContentModelFolder *>> folderMap;
+    QVector<QString> lastParentPath;
+    TorrentContentModelFolder *lastParent = m_rootItem;
+    // Iterate over files
+    for (int i = 0; i < filesCount; ++i)
+    {
+        const QString path = info.filePath(i).data();
+
+        // Iterate of parts of the path to create necessary folders
+        QList<QStringView> pathFolders = QStringView(path).split(u'/', Qt::SkipEmptyParts);
+        const QString fileName = pathFolders.takeLast().toString();
+
+        if (!std::equal(lastParentPath.begin(), lastParentPath.end()
+                        , pathFolders.begin(), pathFolders.end()))
+        {
+            lastParentPath.clear();
+            lastParentPath.reserve(pathFolders.size());
+
+            // rebuild the path from the root
+            lastParent = m_rootItem;
+            for (const QStringView pathPart : asConst(pathFolders))
+            {
+                const QString folderName = pathPart.toString();
+                lastParentPath.push_back(folderName);
+
+                TorrentContentModelFolder *&newParent = folderMap[lastParent][folderName];
+                if (!newParent)
+                {
+                    newParent = new TorrentContentModelFolder(folderName, lastParent);
+                    lastParent->appendChild(newParent);
+                }
+
+                lastParent = newParent;
+            }
+        }
+
+        // Actually create the file
+        TorrentContentModelFile *fileItem = new TorrentContentModelFile(
+                    fileName, info.fileSize(i), lastParent, i);
+
+        lastParent->appendChild(fileItem);
+        m_filesIndex.push_back(fileItem);
     }
 }

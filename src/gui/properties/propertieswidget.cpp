@@ -546,12 +546,10 @@ void PropertiesWidget::loadDynamicData()
             if (!isContentInitialized)
             {
                 // List files in torrent
-                m_propListModel->model()->setupModelData(*m_torrent);
-                // Load file priorities
-                m_propListModel->model()->updateFilesPriorities(m_torrent->filePriorities());
-                // Update file progress/availability
-                m_propListModel->model()->updateFilesProgress(m_torrent->filesProgress());
-                m_propListModel->model()->updateFilesAvailability(m_torrent->availableFileFractions());
+                m_propListModel->model()->setupModelData(*m_torrent
+                                                         , m_torrent->filesProgress()
+                                                         , m_torrent->filePriorities()
+                                                         , m_torrent->availableFileFractions());
 
                 // Expand single-item folders recursively.
                 // This will trigger sorting and filtering so do it after all relevant data is loaded.

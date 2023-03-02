@@ -75,7 +75,13 @@ public:
     QModelIndex parent(const QModelIndex &index) const override;
     int rowCount(const QModelIndex &parent = {}) const override;
     void clear();
+
     void setupModelData(const BitTorrent::AbstractFileStorage &info);
+    void setupModelData(const BitTorrent::AbstractFileStorage &info
+                        , const QVector<qreal> &fp
+                        , const QVector<BitTorrent::DownloadPriority> &fprio
+                        , const QVector<qreal> &fa);
+
 
 signals:
     void filteredFilesChanged();
@@ -84,6 +90,8 @@ private:
     using ColumnInterval = IndexInterval<int>;
 
     void notifySubtreeUpdated(const QModelIndex &index, const QVector<ColumnInterval> &columns);
+
+    void resetModelTree(const BitTorrent::AbstractFileStorage &info);
 
     TorrentContentModelFolder *m_rootItem = nullptr;
     QVector<TorrentContentModelFile *> m_filesIndex;
