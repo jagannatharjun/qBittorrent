@@ -100,8 +100,6 @@ namespace BitTorrent
         PieceRange filePieces(const Path &filePath) const;
         PieceRange filePieces(int fileIndex) const;
 
-        int fileIndexAtPiece(int piece) const;
-
         PieceFileInfo mapFile(int fileIndex, qlonglong offset, int size) const;
         
         std::shared_ptr<lt::torrent_info> nativeInfo() const;

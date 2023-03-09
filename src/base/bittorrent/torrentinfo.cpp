@@ -412,11 +412,6 @@ TorrentInfo::PieceRange TorrentInfo::filePieces(const int fileIndex) const
     return makeInterval(beginIdx, endIdx);
 }
 
-int TorrentInfo::fileIndexAtPiece(const int piece) const
-{
-    return m_nativeInfo->files().file_index_at_piece(piece);
-}
-
 PieceFileInfo TorrentInfo::mapFile(int fileIndex, qlonglong offset, int size) const
 {
     lt::peer_request info = m_nativeInfo->map_file(lt::file_index_t {fileIndex}, offset, size);

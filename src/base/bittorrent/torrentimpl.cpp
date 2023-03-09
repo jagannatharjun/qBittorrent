@@ -2587,9 +2587,6 @@ void TorrentImpl::resetPieceDeadline(const int index)
         qDebug("resetting piece deadline %d", index);
         m_nativeHandle.reset_piece_deadline(lt::piece_index_t {index});
 
-        const auto fileIndex = m_torrentInfo.fileIndexAtPiece(index);
-        m_nativeHandle.piece_priority(index, LT::toNative(m_filePriorities[fileIndex]));
-
         m_pieceDeadlines.erase(iter);
     }
 }
