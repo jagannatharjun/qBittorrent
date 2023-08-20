@@ -478,22 +478,23 @@ void RSSWidget::handleCurrentArticleItemChanged(QListWidgetItem *currentItem, QL
     auto article = m_articleListWidget->getRSSArticle(currentItem);
     Q_ASSERT(article);
 
-    const QString highlightedBaseColor = m_ui->textBrowser->palette().color(QPalette::Highlight).name();
-    const QString highlightedBaseTextColor = m_ui->textBrowser->palette().color(QPalette::HighlightedText).name();
-    const QString alternateBaseColor = m_ui->textBrowser->palette().color(QPalette::AlternateBase).name();
+    const QString highlightedBaseColor = m_ui->textBrowser->palette().color(QPalette::Highlight).name(QColor::HexArgb);
+    const QString highlightedBaseTextColor = m_ui->textBrowser->palette().color(QPalette::HighlightedText).name(QColor::HexArgb);
+    const QString alternateBaseColor = m_ui->textBrowser->palette().color(QPalette::AlternateBase).name(QColor::HexArgb);
 
-    QString html =
+    QString heading =
         u"<div style='border: 2px solid red; margin-left: 5px; margin-right: 5px; margin-bottom: 5px;'>" +
-        u"<div style='background-color: \"%1\"; font-weight: bold; color: \"%2\";'>%3</div>"_qs.arg(highlightedBaseColor, highlightedBaseTextColor, article->title());
+        u"<div style='background-color: %1; font-weight: bold; color: %2;'>%3</div>"_qs.arg(highlightedBaseColor, highlightedBaseTextColor, article->title());
     if (article->date().isValid())
-        html += u"<div style='background-color: \"%1\";'><b>%2</b>%3</div>"_qs.arg(alternateBaseColor, tr("Date: "), QLocale::system().toString(article->date().toLocalTime()));
+        heading += u"<div style='background-color: %1;'><b>%2</b>%3</div>"_qs.arg(alternateBaseColor, tr("Date: "), QLocale::system().toString(article->date().toLocalTime()));
     if (!article->author().isEmpty())
-        html += u"<div style='background-color: \"%1\";'><b>%2</b>%3</div>"_qs.arg(alternateBaseColor, tr("Author: "), article->author());
-    html += u"</div>"
-            u"<div style='margin-left: 5px; margin-right: 5px;'>";
+        heading += u"<div style='background-color: %1;'><b>%2</b>%3</div>"_qs.arg(alternateBaseColor, tr("Author: "), article->author());
+    heading += u"</div>";
+
+    QString content = u"<div style='margin-left: 5px; margin-right: 5px;'>"_qs;
     if (Qt::mightBeRichText(article->description()))
     {
-        html += article->description();
+        content += article->description();
     }
     else
     {
@@ -521,10 +522,10 @@ void RSSWidget::handleCurrentArticleItemChanged(QListWidgetItem *currentItem, QL
         description = description.replace(rx, u"<span style=\"font-size:\\2px\">"_qs);
         description = description.replace(u"[/size]"_qs, u"</span>"_qs, Qt::CaseInsensitive);
 
-        html += u"<pre>" + description + u"</pre>";
+        content += u"<pre>" + description + u"</pre>";
     }
-    html += u"</div>";
-    m_ui->textBrowser->setContentHTML(html);
+    content += u"</div>";
+    m_ui->textBrowser->setContentHTML(heading, content);
 }
 
 void RSSWidget::saveSlidersPosition()

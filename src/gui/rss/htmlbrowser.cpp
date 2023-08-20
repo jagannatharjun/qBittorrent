@@ -28,14 +28,37 @@
 
 #include "htmlbrowser.h"
 
-
-void HtmlBrowser::setContentHTML(const QString &html)
+#include <QStyle>
+void HtmlBrowser::setContentHTML(const QString &heading, const QString &content)
 {
     static const QString base = uR"(
 <html>
 
 <head>
     <style>
+        body {
+            background-color: {bg};
+            color: {fg};
+        }
+
+        :root {
+            --initial-max-width: 100%;
+        }
+
+        @media (min-resolution: 96dpi) {
+            :root {
+                --zoom-factor: 1;
+                /* Default zoom factor */
+            }
+        }
+
+        @media (min-resolution: 120dpi) {
+            :root {
+                --zoom-factor: 1.25;
+                /* Adjust as needed */
+            }
+        }
+
         .container {
             display: flex;
             justify-content: center;
@@ -45,14 +68,16 @@ void HtmlBrowser::setContentHTML(const QString &html)
 
         .container img {
             margin: 10px;
-            /* Add spacing between images if desired */
+            max-width:  calc(var(--initial-max-width) * var(--zoom-factor));
         }
+
     </style>
 </head>
 
 <body>
+    {heading}
     <div class="container">
-        {text}
+        {content}
     </div>
 </body>
 
@@ -60,5 +85,14 @@ void HtmlBrowser::setContentHTML(const QString &html)
 
 )"_qs;
 
-    setHtml(QString(base).replace(u"{text}"_qs, html));
+    const QString bg = palette().color(QPalette::ColorRole::Base).name();
+    const QString fg = palette().color(QPalette::ColorRole::Text).name();
+
+    const auto html = QString(base)
+            .replace(u"{bg}"_qs, bg)
+            .replace(u"{fg}"_qs, fg)
+            .replace(u"{heading}"_qs, heading)
+            .replace(u"{content}"_qs, content);
+
+    setHtml(html);
 }

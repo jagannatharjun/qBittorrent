@@ -43,6 +43,6 @@ class HtmlBrowser final : public QWebEngineView
 public:
     using QWebEngineView::QWebEngineView;
 
-    void setContentHTML(const QString &html);
+    void setContentHTML(const QString &heading, const QString &content);
 };
 
