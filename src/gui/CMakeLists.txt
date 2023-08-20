@@ -1,9 +1,10 @@
 if (QT6)
-    find_package(Qt6 ${minQt6Version} REQUIRED COMPONENTS Widgets Svg)
+    find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets Svg WebEngineWidgets)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets Svg WebEngineWidgets)
 else()
-    find_package(Qt5 ${minQt5Version} REQUIRED COMPONENTS Widgets Svg)
+    find_package(Qt5 ${minQt5Version} REQUIRED COMPONENTS Widgets Svg WebEngineWidgets)
     if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        find_package(Qt5 ${minQt5Version} REQUIRED COMPONENTS WinExtras)
+	find_package(Qt5 ${minQt5Version} REQUIRED COMPONENTS WinExtras)
     endif()
 endif()
 
@@ -220,7 +221,7 @@ target_include_directories(qbt_gui PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(qbt_gui
     PRIVATE
-        qbt_base
+        qbt_base Qt${QT_VERSION_MAJOR}::WebEngineWidgets
     PUBLIC
         Qt::Gui Qt::Widgets
 )

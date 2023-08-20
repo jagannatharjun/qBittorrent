@@ -179,6 +179,7 @@ void RSSWidget::displayRSSListMenu(const QPoint &pos)
         {
             menu->addSeparator();
             menu->addAction(m_ui->actionCopyFeedURL);
+            menu->addAction(m_ui->actionFeedClear);
         }
     }
     else
@@ -464,7 +465,6 @@ void RSSWidget::on_markReadButton_clicked()
 // display a news
 void RSSWidget::handleCurrentArticleItemChanged(QListWidgetItem *currentItem, QListWidgetItem *previousItem)
 {
-    m_ui->textBrowser->clear();
 
     if (previousItem)
     {

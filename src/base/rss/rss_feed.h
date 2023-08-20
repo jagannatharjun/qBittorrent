@@ -76,6 +76,8 @@ namespace RSS
         void markAsRead() override;
         void refresh() override;
 
+        void clear();
+
         QUuid uid() const;
         QString url() const;
         QString title() const;

@@ -28,79 +28,21 @@
 
 #pragma once
 
+#include <QtWebEngineWidgets/qwebengineview.h>
 #include <QHash>
 #include <QTextBrowser>
 
 #include <QMutex>
 #include <QThread>
 
-
-class QNetworkAccessManager;
-class QNetworkDiskCache;
-class QNetworkReply;
-
-class NetImageLoader : public QObject
-{
-    Q_OBJECT
-public:
-    NetImageLoader(QObject *parent = nullptr);
-
-    // all public functions are reentarent
-
-    void load(const QUrl &url);
-
-    const QSize &maxLoadSize() const;
-    void setMaxLoadSize(const QSize &newMaxLoadSize);
-
-signals:
-    void updated(const QUrl &url, QImage image, bool incomplete);
-
-    void abortDownloads();
-
-private slots:
-    void handleReplyFinished(QNetworkReply *reply);
-    void handleProgressUpdated();
-
-    void readIncompleteImages();
-
-    void _loadImpl(const QUrl &url);
-
-private:
-    std::unique_ptr<QNetworkAccessManager> m_netManager = nullptr;
-    QSet<QNetworkReply *> m_dirty;
-    QSet<QUrl> m_activeRequests;
-    bool m_readIncompleteImagesEnqueued = false;
-
-    mutable QMutex m_lock;
-    // follwing variables are protected under 'lock'
-    QSize m_maxLoadSize {};
-};
-
-class HtmlBrowser final : public QTextBrowser
+class HtmlBrowser final : public QWebEngineView
 {
     Q_OBJECT
     Q_DISABLE_COPY_MOVE(HtmlBrowser)
 
 public:
-    explicit HtmlBrowser(QWidget* parent = nullptr);
-    ~HtmlBrowser();
+    using QWebEngineView::QWebEngineView;
 
     void setContentHTML(const QString &html);
-    QVariant loadResource(int type, const QUrl &name) override;
-
-private slots:
-    void enqueueRefresh();
-    void resourceLoaded(const QUrl &url, const QImage image, bool pending = false);
-
-protected:
-    void resizeEvent(QResizeEvent *event) override;
-
-private:
-    class ImageCache;
-
-    bool m_refreshEnqueued = false;
-    QThread m_workerThread;
-    std::unique_ptr<NetImageLoader> m_imageLoader;
-    std::unique_ptr<ImageCache> m_imageCache;
 };
 
