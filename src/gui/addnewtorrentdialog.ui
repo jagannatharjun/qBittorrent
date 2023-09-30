@@ -27,8 +27,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>882</width>
-        <height>598</height>
+        <width>868</width>
+        <height>660</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_6">
@@ -194,6 +194,30 @@
                 </item>
                </layout>
               </item>
+              <item>
+               <layout class="QHBoxLayout" name="recommendedCatLayout">
+                <item>
+                 <widget class="QLabel" name="label">
+                  <property name="text">
+                   <string>Recommended Categories: </string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="horizontalSpacer_7">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
               <item alignment="Qt::AlignRight">
                <widget class="QCheckBox" name="defaultCategoryCheckbox">
                 <property name="text">
@@ -203,7 +227,7 @@
               </item>
               <item>
                <layout class="QGridLayout" name="gridLayout">
-               <item row="0" column="0">
+                <item row="0" column="0">
                  <widget class="QCheckBox" name="startTorrentCheckBox">
                   <property name="text">
                    <string>Start torrent</string>
@@ -212,35 +236,35 @@
                 </item>
                 <item row="0" column="1">
                  <layout class="QHBoxLayout" name="stopConditionLayout">
-                 <item>
-                 <widget class="QLabel" name="stopConditionLabel">
-                  <property name="text">
-                   <string>Stop condition:</string>
-                  </property>
-                 </widget>
-                 </item>
-                 <item>
-                 <widget class="QComboBox" name="stopConditionComboBox">
-                  <property name="currentIndex">
-                   <number>0</number>
-                  </property>
                   <item>
-                   <property name="text">
-                    <string>None</string>
-                   </property>
+                   <widget class="QLabel" name="stopConditionLabel">
+                    <property name="text">
+                     <string>Stop condition:</string>
+                    </property>
+                   </widget>
                   </item>
                   <item>
-                   <property name="text">
-                    <string>Metadata received</string>
-                   </property>
+                   <widget class="QComboBox" name="stopConditionComboBox">
+                    <property name="currentIndex">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <property name="text">
+                      <string>None</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Metadata received</string>
+                     </property>
+                    </item>
+                    <item>
+                     <property name="text">
+                      <string>Files checked</string>
+                     </property>
+                    </item>
+                   </widget>
                   </item>
-                  <item>
-                   <property name="text">
-                    <string>Files checked</string>
-                   </property>
-                  </item>
-                 </widget>
-                 </item>
                  </layout>
                 </item>
                 <item row="0" column="2">
@@ -379,8 +403,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>411</width>
-                   <height>70</height>
+                   <width>462</width>
+                   <height>68</height>
                   </rect>
                  </property>
                  <layout class="QVBoxLayout" name="verticalLayout_2">

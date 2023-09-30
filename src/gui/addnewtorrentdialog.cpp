@@ -40,6 +40,7 @@
 #include <QString>
 #include <QUrl>
 #include <QVector>
+#include <queue>
 
 #include "base/bittorrent/common.h"
 #include "base/bittorrent/downloadpriority.h"
@@ -64,6 +65,8 @@
 #include "ui_addnewtorrentdialog.h"
 #include "uithememanager.h"
 #include "utils.h"
+
+#include <QtConcurrent/QtConcurrent>
 
 namespace
 {
@@ -178,6 +181,91 @@ namespace
             pathList.prepend(path.toString());
 
         settings()->storeValue(settingsKey, QStringList(pathList.mid(0, maxLength)));
+    }
+
+    // Levenshtein distance calculation function
+    int levenshteinDistance(const QString &s1, const QString &s2)
+    {
+        const int m = s1.length();
+        const int n = s2.length();
+        QVector<QVector<int>> dp(m + 1, QVector<int>(n + 1, 0));
+
+        for (int i = 0; i <= m; ++i)
+            dp[i][0] = i;
+
+        for (int j = 0; j <= n; ++j)
+            dp[0][j] = j;
+
+        for (int i = 1; i <= m; ++i) {
+            for (int j = 1; j <= n; ++j) {
+                int cost = (s1[i - 1] == s2[j - 1]) ? 0 : 1;
+                dp[i][j] = qMin(qMin(dp[i - 1][j] + 1, dp[i][j - 1] + 1), dp[i - 1][j - 1] + cost);
+            }
+        }
+
+        return dp[m][n];
+    }
+
+    QStringList findSimilarities(const QString &source
+                                      , const QStringList &words
+                                      , const QStringList &categories)
+    {
+
+        std::vector<std::pair<int, QString>> distances; // Map to store distances and their corresponding categories
+        const int MAXRESULTS = 3;
+
+        for (int i = 0; i < words.size(); ++i)
+        {
+            const int distance = levenshteinDistance(source, words[i]);
+
+            auto existing = std::find_if(distances.begin()
+                                         , distances.end()
+                                         , [&](const auto &p) { return p.second == categories[i]; });
+
+            if (existing != distances.end())
+            {
+                if (existing->first > distance)
+                {
+                    existing->first = distance;
+                }
+            }
+            else
+            {
+                distances.push_back({distance, categories[i]});
+            }
+
+
+            std::sort(distances.begin(), distances.end(), [](const auto &l, const auto &r)
+            {
+                return l.first < r.first;
+            });
+
+            if (distances.size() > MAXRESULTS)
+                distances.pop_back();
+        }
+
+        QStringList r;
+        for (const auto &p : distances)
+            r.push_back(p.second);
+
+        return r;
+    }
+
+    QFuture<QStringList> findRecommendedCategories(const QString &name)
+    {
+        const auto session = BitTorrent::Session::instance();
+        QStringList category, torrentName;
+
+        for (const auto *torrent : session->torrents())
+        {
+            if (torrent->category().isEmpty())
+                continue;
+
+            category.push_back(torrent->category());
+            torrentName.push_back(torrent->name());
+        }
+
+        return QtConcurrent::run(findSimilarities, name, torrentName, category);
     }
 }
 
@@ -971,6 +1059,8 @@ void AddNewTorrentDialog::setMetadataProgressIndicator(bool visibleIndicator, co
 
 void AddNewTorrentDialog::setupTreeview()
 {
+    updateRecommendCategories();
+
     if (!hasMetadata())
     {
         m_ui->labelCommentData->setText(tr("Not Available", "This comment is unavailable"));
@@ -1144,4 +1234,36 @@ void AddNewTorrentDialog::handleFilterTextChanged(const QString &filter)
     {
         m_ui->contentTreeView->expandAll();
     }
+}
+
+void AddNewTorrentDialog::resetCategoriesState()
+{
+    qDeleteAll(m_categoriesButton);
+    m_categoriesButton.clear();
+
+    m_recommendedCategories.cancel();
+}
+
+void AddNewTorrentDialog::updateRecommendCategories()
+{
+    resetCategoriesState();
+    if (!hasMetadata())
+        return;
+
+    m_recommendedCategories = findRecommendedCategories(m_torrentInfo.name());
+    m_recommendedCategories.then(this, [this](const QStringList &categories)
+    {
+        for (auto itr = categories.rbegin(); itr != categories.rend(); ++itr)
+        {
+            auto button = new QPushButton(*itr);
+            connect(button, &QPushButton::clicked, this, [this, category = *itr]()
+            {
+                const auto idx = m_ui->categoryComboBox->findText(category);
+                if (idx != -1)
+                    m_ui->categoryComboBox->setCurrentIndex(idx);
+            });
+
+            m_ui->recommendedCatLayout->insertWidget(1, button);
+        }
+    });
 }

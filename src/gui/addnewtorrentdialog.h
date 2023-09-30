@@ -31,6 +31,7 @@
 #include <memory>
 
 #include <QDialog>
+#include <QFuture>
 
 #include "base/bittorrent/addtorrentparams.h"
 #include "base/bittorrent/magneturi.h"
@@ -57,6 +58,7 @@ class LineEdit;
 class PropListDelegate;
 class TorrentContentFilterModel;
 class TorrentFileGuard;
+class QPushButton;
 
 class AddNewTorrentDialog final : public QDialog
 {
@@ -94,6 +96,8 @@ private slots:
     void doNotDeleteTorrentClicked(bool checked);
     void renameSelectedFile();
     void handleFilterTextChanged(const QString &filter);
+    void resetCategoriesState();
+    void updateRecommendCategories();
 
     void accept() override;
     void reject() override;
@@ -134,4 +138,7 @@ private:
     SettingValue<bool> m_storeRememberLastSavePath;
     SettingValue<QByteArray> m_storeTreeHeaderState;
     SettingValue<QByteArray> m_storeSplitterState;
+
+    QFuture<QStringList> m_recommendedCategories;
+    QVector<QPushButton *> m_categoriesButton;
 };
