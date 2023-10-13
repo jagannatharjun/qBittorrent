@@ -28,7 +28,18 @@
 
 #include "htmlbrowser.h"
 
+#include <QHBoxLayout>
 #include <QStyle>
+#include <QWebEngineView>
+
+HtmlBrowser::HtmlBrowser(QWidget *parent)
+    : QWidget (parent)
+{
+    setLayout(new QHBoxLayout);
+}
+
+HtmlBrowser::~HtmlBrowser() = default; // required because of forward declarations
+
 void HtmlBrowser::setContentHTML(const QString &heading, const QString &content)
 {
     static const QString base = uR"(
@@ -88,11 +99,27 @@ void HtmlBrowser::setContentHTML(const QString &heading, const QString &content)
     const QString bg = palette().color(QPalette::ColorRole::Base).name();
     const QString fg = palette().color(QPalette::ColorRole::Text).name();
 
-    const auto html = QString(base)
+    m_html = QString(base)
             .replace(u"{bg}"_qs, bg)
             .replace(u"{fg}"_qs, fg)
             .replace(u"{heading}"_qs, heading)
             .replace(u"{content}"_qs, content);
 
-    setHtml(html);
+    showHTML();
+}
+
+void HtmlBrowser::showHTML()
+{
+    if (!m_webView)
+    {
+        m_webView = std::make_unique<QWebEngineView>(this);
+        layout()->addWidget(m_webView.get());
+    }
+
+    m_webView->setHtml(m_html);
+}
+
+void HtmlBrowser::hideHTML()
+{
+    m_webView.reset();
 }

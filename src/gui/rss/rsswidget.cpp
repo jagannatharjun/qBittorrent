@@ -139,6 +139,16 @@ RSSWidget::~RSSWidget()
     delete m_ui;
 }
 
+void RSSWidget::showHTML()
+{
+    m_ui->textBrowser->showHTML();
+}
+
+void RSSWidget::hideHTML()
+{
+    m_ui->textBrowser->hideHTML();
+}
+
 // display a right-click menu
 void RSSWidget::displayRSSListMenu(const QPoint &pos)
 {

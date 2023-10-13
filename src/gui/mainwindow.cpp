@@ -654,6 +654,14 @@ void MainWindow::displayRSSTab(bool enable)
         {
             m_rssWidget = new RSSWidget(m_tabs);
             connect(m_rssWidget.data(), &RSSWidget::unreadCountUpdated, this, &MainWindow::handleRSSUnreadCountUpdated);
+            connect(m_tabs, &QTabWidget::currentChanged, m_rssWidget.get(), [this]()
+            {
+                if (m_tabs->currentWidget() == m_rssWidget)
+                    m_rssWidget->showHTML();
+                else
+                    m_rssWidget->hideHTML();
+            });
+
 #ifdef Q_OS_MACOS
             m_tabs->addTab(m_rssWidget, tr("RSS (%1)").arg(RSS::Session::instance()->rootFolder()->unreadCount()));
 #else

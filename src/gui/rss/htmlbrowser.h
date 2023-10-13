@@ -28,21 +28,26 @@
 
 #pragma once
 
-#include <QtWebEngineWidgets/qwebengineview.h>
-#include <QHash>
-#include <QTextBrowser>
+#include <QWidget>
 
-#include <QMutex>
-#include <QThread>
+class QWebEngineView;
+class QHBoxLayout;
 
-class HtmlBrowser final : public QWebEngineView
+class HtmlBrowser final : public QWidget
 {
     Q_OBJECT
     Q_DISABLE_COPY_MOVE(HtmlBrowser)
 
 public:
-    using QWebEngineView::QWebEngineView;
+    HtmlBrowser(QWidget *parent);
+    ~HtmlBrowser();
 
     void setContentHTML(const QString &heading, const QString &content);
+    void showHTML();
+    void hideHTML();
+
+private:
+    std::unique_ptr<QWebEngineView> m_webView;
+    QString m_html;
 };
 
