@@ -3150,8 +3150,6 @@ void TorrentImpl::setPieceDeadline(const int index, const int deadline, const bo
 
 void TorrentImpl::resetPieceDeadline(const int index)
 {
-    Q_ASSERT(m_pieceDeadlines.contains(index));
-
     const auto iter = m_pieceDeadlines.find(index);
     if (iter == m_pieceDeadlines.end())
         return;

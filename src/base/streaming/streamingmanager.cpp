@@ -103,7 +103,7 @@ namespace
             // lastBytePos is optional, if not provided we should assume lastBytePos is at the end of the file
             lastBytePos = fileSize - 1;
 
-        if (firstBytePos > lastBytePos)
+        if (firstBytePos > lastBytePos || lastBytePos >= fileSize)
             return std::nullopt;
 
         return Range {firstBytePos, lastBytePos};
@@ -233,6 +233,7 @@ void StreamingManager::doGET(StreamRequest *request, BitTorrent::Torrent *torren
                                                                        , QString::number(fileSize))
                                             }
                                         }, range.size());
+
 
     auto fileReader = new TorrentFileReader(torrent, fileIndex, range.firstBytePos, range.lastBytePos, streamResponse, request);
 
