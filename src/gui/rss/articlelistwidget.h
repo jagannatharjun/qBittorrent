@@ -54,6 +54,7 @@ private slots:
     void handleArticleAdded(RSS::Article *rssArticle);
     void handleArticleRead(RSS::Article *rssArticle);
     void handleArticleAboutToBeRemoved(RSS::Article *rssArticle);
+    void handleArticlesAboutToBeReset();
 
 private:
     void checkInvariant() const;

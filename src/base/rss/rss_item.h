@@ -75,6 +75,8 @@ namespace RSS
         void newArticle(Article *article);
         void articleRead(Article *article);
         void articleAboutToBeRemoved(Article *article);
+        void articlesAboutToReset();
+        void articlesReset();
 
     protected:
         explicit Item(const QString &path);

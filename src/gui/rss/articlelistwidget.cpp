@@ -77,6 +77,7 @@ void ArticleListWidget::setRSSItem(RSS::Item *rssItem, bool unreadOnly)
         connect(m_rssItem, &RSS::Item::newArticle, this, &ArticleListWidget::handleArticleAdded);
         connect(m_rssItem, &RSS::Item::articleRead, this, &ArticleListWidget::handleArticleRead);
         connect(m_rssItem, &RSS::Item::articleAboutToBeRemoved, this, &ArticleListWidget::handleArticleAboutToBeRemoved);
+        connect(m_rssItem, &RSS::Item::articlesAboutToReset, this, &ArticleListWidget::handleArticlesAboutToBeReset);
 
         for (auto *article : asConst(rssItem->articles()))
         {
@@ -119,6 +120,14 @@ void ArticleListWidget::handleArticleAboutToBeRemoved(RSS::Article *rssArticle)
 {
     delete m_rssArticleToListItemMapping.take(rssArticle);
     checkInvariant();
+}
+
+void ArticleListWidget::handleArticlesAboutToBeReset()
+{
+    for (QListWidgetItem *item : m_rssArticleToListItemMapping)
+        delete item;
+
+    m_rssArticleToListItemMapping.clear();
 }
 
 void ArticleListWidget::checkInvariant() const

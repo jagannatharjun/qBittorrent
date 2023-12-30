@@ -167,6 +167,15 @@ void Feed::updateFetchDelay()
     Net::DownloadManager::instance()->registerSequentialService(Net::ServiceID::fromURL(m_url), m_session->fetchDelay());
 }
 
+
+void Feed::clear()
+{
+    emit articlesAboutToReset();
+    m_articles.clear();
+    m_articlesByDate.clear();
+    emit articlesReset();
+}
+
 QUuid Feed::uid() const
 {
     return m_uid;
