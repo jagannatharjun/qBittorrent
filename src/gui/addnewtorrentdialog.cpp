@@ -501,6 +501,8 @@ AddNewTorrentDialog::AddNewTorrentDialog(const BitTorrent::TorrentDescriptor &to
     });
 
     setCurrentContext(std::make_shared<Context>(Context {torrentDescr, inParams}));
+
+    m_ui->sequentialCheckBox->setChecked(true);
 }
 
 AddNewTorrentDialog::~AddNewTorrentDialog()
